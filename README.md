@@ -13,13 +13,13 @@ Specifically, we are replacing the concept of **Partial Joins** with **ZK-Joins*
 When a Matrix homeserver joins a federated room today, it faces a dilemma:
 
 1. **Status Quo (Full Join):** To **trustlessly** join a room, a server must download the room's massive historical "Auth Chain" DAG and locally execute the complex State Resolution v2 algorithm from genesis. For large rooms like `#matrix:matrix.org`, this contains hundreds of thousands of events, taking an enormous amount of RAM and CPU. This takes forever.
-2. **Faster Joins (MSC3902):** A temporary fix where a server *blindly trusts* the remote server's assertion of the "current state" so the user can chat immediately, while it secretly downloads the gigabytes of history and verifies it in the background. This is ultimately a compromise on decentralization.
+2. **Faster Joins (MSC3902):** A temporary fix where a server _blindly trusts_ the remote server's assertion of the "current state" so the user can chat immediately, while it secretly downloads the gigabytes of history and verifies it in the background. This is ultimately a compromise on decentralization.
 
 ## The Solution: Math over Computation
 
 `zk-matrix-join` introduces a Zero-Knowledge architecture to Matrix state resolution.
 
-By providing a succinct STARK proof alongside the current state, the joining server can verify that the state was calculated correctly from genesis in *milliseconds*.
+By providing a succinct STARK proof alongside the current state, the joining server can verify that the state was calculated correctly from genesis in _milliseconds_.
 
 Instead of every individual homeserver downloading 50MB of Auth Chain and running Kahn's topological sort and Ed25519 signature verification on 500,000 events, a prover node handles the heavy lifting inside a Gen-Purpose **zkVM** (like SP1). This node computes the state resolution and generates a Zero-Knowledge recursive STARK proving that the resulting state conforms exactly to Matrix protocol rules.
 

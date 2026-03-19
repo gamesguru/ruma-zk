@@ -32,7 +32,7 @@ build: ##H Build the Rust project
 .PHONY: run
 run: ##H Run the ZK-Matrix-Join Demo
 	@echo "Running ZK-Matrix-Join Demo..."
-	$(CARGO) run
+	$(CARGO) run --bin zk-matrix-join-host
 
 .PHONY: test
 test: ##H Run the ZK Circuit Tests

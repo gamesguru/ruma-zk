@@ -30,7 +30,7 @@ fn main() {
     println!("* Starting ZK-Matrix-Join SP1 Demo...");
     println!("--------------------------------------------------");
 
-    let prover_client = ProverClient::new();
+    let _prover_client = ProverClient::new();
 
     // Example test vector to prove
     let input = DAGMergeInput {
