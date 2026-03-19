@@ -12,16 +12,18 @@ Specifically, we are replacing the concept of **Partial Joins** with **ZK-Joins*
 
 When a Matrix homeserver joins a federated room today, it faces a dilemma:
 
-1. **Full Join:** Download the entire multi-gigabyte historical Directed Acyclic Graph (DAG) of the room and compute the state from the genesis event. This takes forever.
-2. **Partial Join:** Ask a peer server for the current state and trust that they aren't lying. This is fast, but breaks the "don't trust, verify" ethos of decentralization.
+1. **Status Quo (Full Join):** To **trustlessly** join a room, a server must download the room's massive historical "Auth Chain" DAG and locally execute the complex State Resolution v2 algorithm from genesis. For large rooms like `#matrix:matrix.org`, this contains hundreds of thousands of events, taking an enormous amount of RAM and CPU. This takes forever.
+2. **Faster Joins (MSC3902):** A temporary fix where a server *blindly trusts* the remote server's assertion of the "current state" so the user can chat immediately, while it secretly downloads the gigabytes of history and verifies it in the background. This is ultimately a compromise on decentralization.
 
 ## The Solution: Math over Computation
 
-`zk-matrix-join` introduces a ZK-Rollup architecture to Matrix.
+`zk-matrix-join` introduces a Zero-Knowledge architecture to Matrix state resolution.
 
-Instead of every homeserver re-calculating the DAG merges and running State Resolution v2, heavily provisioned "Sequencer" nodes handle the heavy lifting. They compute the state resolution and generate a Zero-Knowledge recursive SNARK proving that the resulting state is mathematically correct according to the protocol rules.
+By providing a succinct STARK proof alongside the current state, the joining server can verify that the state was calculated correctly from genesis in *milliseconds*.
 
-Standard homeservers can then perform a **ZK-Join**: they download the latest state and a tiny cryptographic proof. They verify the proof in O(1) time (milliseconds) and instantly participate in the room with absolute mathematical certainty that the state is valid.
+Instead of every individual homeserver downloading 50MB of Auth Chain and running Kahn's topological sort and Ed25519 signature verification on 500,000 events, a prover node handles the heavy lifting inside a Gen-Purpose **zkVM** (like SP1). This node computes the state resolution and generates a Zero-Knowledge recursive STARK proving that the resulting state conforms exactly to Matrix protocol rules.
+
+Standard residential servers (or even browser light clients via WebAssembly) can perform a **Trustless ZK-Join**: they download just the latest state (2MB) and a tiny STARK proof (250KB). They verify the proof instantly and participate with 100% cryptographically guaranteed trustlessness.
 
 ## Architecture
 
