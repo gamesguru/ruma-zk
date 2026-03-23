@@ -751,6 +751,20 @@ name = "bytemuck"
 version = "1.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
 
 [[package]]
 name = "byteorder"
@@ -5472,6 +5486,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-verifier"
+version = "3.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf4acb87c786eadd7656384110aef2f434bc5ba40c1631b967e0a10042aa72b6"
+dependencies = [
+ "hex",
+ "lazy_static",
+ "sha2",
+ "substrate-bn-succinct",
+ "thiserror-no-std",
+]
+
+[[package]]
 name = "sp1-zkvm"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5546,6 +5573,23 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "substrate-bn-succinct"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "114c855c26ad0594c830129cb868552fb41415603a6133276c2ecdd9e5ef4255"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+ "cfg-if",
+ "crunchy",
+ "lazy_static",
+ "num-bigint 0.4.6",
+ "rand 0.8.5",
+ "rustc-hex",
+ "sp1-lib",
 ]
 
 [[package]]
@@ -5737,6 +5781,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "thiserror-impl-no-std"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58e6318948b519ba6dc2b442a6d0b904ebfb8d411a3ad3e07843615a72249758"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "thiserror-no-std"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a3ad459d94dd517257cc96add8a43190ee620011bb6e6cdc82dafd97dfafafea"
+dependencies = [
+ "thiserror-impl-no-std",
 ]
 
 [[package]]
@@ -7094,7 +7158,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk-matrix-join-client"
+name = "zk-matrix-join-guest"
 version = "0.1.0"
 dependencies = [
  "ruma-common",
@@ -7107,14 +7171,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "zk-matrix-join-server"
+name = "zk-matrix-join-host"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "sp1-build",
  "sp1-sdk",
- "tokio",
+]
+
+[[package]]
+name = "zk-matrix-wasm"
+version = "0.1.0"
+dependencies = [
+ "sp1-verifier",
+ "wasm-bindgen",
 ]
 
 [[package]]
