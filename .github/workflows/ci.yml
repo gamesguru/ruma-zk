@@ -1,3 +1,4 @@
+---
 name: Rust ZK-Matrix CI
 
 on:
@@ -21,14 +22,14 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install Protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
       - name: Check Formatting
         run: cargo fmt --all -- --check
 
       - name: Run Clippy (Linter)
         run: cargo clippy -- -D warnings
-
-      - name: Install Protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
 
       - name: Build
         run: cargo build --verbose
