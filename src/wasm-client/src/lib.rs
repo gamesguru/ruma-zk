@@ -3,7 +3,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub fn verify_matrix_join(proof_bytes: &[u8], _expected_vkey_hash: &[u8]) -> bool {
     // In a fully built SP1 pipeline, you would use:
-    // match sp1_verifier::Growth16Verifier::verify(proof_bytes, _expected_vkey_hash) {
+    // match sp1_verifier::Groth16Verifier::verify(proof_bytes, _expected_vkey_hash) {
     //     Ok(_) => true,
     //     Err(_) => false,
     // }

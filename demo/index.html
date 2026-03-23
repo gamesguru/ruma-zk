@@ -48,7 +48,9 @@
     <div id="log">Status: Idle.</div>
 
     <script type="module">
-      import init, { verify_matrix_join } from "./pkg/zk_matrix_wasm.js";
+      import init, {
+        verify_matrix_join,
+      } from "../src/wasm-client/pkg/zk_matrix_wasm.js";
 
       async function runDemo() {
         try {
@@ -63,7 +65,7 @@
             // Mock network delay
             await new Promise((r) => setTimeout(r, 600));
 
-            // Simulate the downloaded 312-byte Growth16 payload
+            // Simulate the downloaded 312-byte Groth16 payload
             const proofBytes = new Uint8Array(312);
             const vkeyHash = new Uint8Array(32);
 
