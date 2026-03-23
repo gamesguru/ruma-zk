@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
-use sp1_sdk::{ProverClient, SP1Stdin};
+use sp1_sdk::blocking::{Prover, ProverClient};
+use sp1_sdk::SP1Stdin;
 
-pub const ZK_MATRIX_GUEST_ELF: &[u8] = include_bytes!(env!("SP1_ELF_ZK_MATRIX_JOIN_GUEST"));
+pub const ZK_MATRIX_GUEST_ELF: &[u8] = include_bytes!(env!("SP1_ELF_zk-matrix-join-guest"));
 
 // Represents the binary, packed data we send to the guest as a Hint.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -26,7 +27,7 @@ fn main() {
     println!("* Starting ZK-Matrix-Join SP1 Demo...");
     println!("--------------------------------------------------");
 
-    let prover_client = ProverClient::new();
+    let prover_client = ProverClient::builder().cpu().build();
 
     // The Host does the heavy lifting: resolving the state according to Kahn's topological sort.
     // Here we simulate the result of `ruma_state_res::resolve` mathematically sorting the events.
@@ -57,7 +58,9 @@ fn main() {
     println!("Generating Groth16 SNARK Proof for Matrix State Resolution...");
 
     // Setup the SP1 Proving Key
-    let (_pk, _vk) = prover_client.setup(ZK_MATRIX_GUEST_ELF);
+    let _pk = prover_client
+        .setup(sp1_sdk::Elf::Static(ZK_MATRIX_GUEST_ELF))
+        .unwrap();
 
     // In a production environment with a fully configured `succinct` toolchain,
     // we would actually run the proof generation:
