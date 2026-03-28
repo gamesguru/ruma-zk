@@ -17,13 +17,20 @@ The Matrix protocol is built on a fully decentralized "don't trust, verify" arch
 
 We propose a new versioned endpoint under the Federation API designed specifically for ZK-Joins.
 
-`GET /_matrix/federation/v3/zk_state_proof/{roomId}`
+### `GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/{roomId}`
 
-**Request Parameters:**
+Retrieves the latest cryptographic state checkpoint for the specified room, alongside the unverified event delta since that checkpoint.
 
-- `roomId`: The ID of the room to join.
+**Authentication:** Requires Server-Server signature.
+**Rate-limiting:** Yes.
 
-**Response payload:**
+**Path Parameters:**
+
+- `roomId` (string, required): The ID of the room to join (e.g. `!abcd:example.com`).
+
+**Response Format:**
+
+Returns an HTTP 200 OK with the following JSON body:
 
 ```json
 {
@@ -31,7 +38,7 @@ We propose a new versioned endpoint under the Federation API designed specifical
   "checkpoint": {
     "event_id": "$historic_event_X",
     "resolved_state_root_hash": "<sha256_hash>",
-    "zk_proof": "<base64_growth16_snark>",
+    "zk_proof": "<base64_groth16_snark>",
     "image_id": "<sp1_vkey_hash>"
   },
   "delta": {
@@ -46,6 +53,23 @@ We propose a new versioned endpoint under the Federation API designed specifical
   }
 }
 ```
+
+**Response Payload Details:**
+
+- `room_version` (string): The Matrix room version, which dictates the state resolution rules and allowed SP1 Guest ELF.
+- `checkpoint` (object): The cryptographic rollup data spanning the room's history up to the cutoff.
+  - `event_id` (string): The Matrix event ID representing the deterministic cutoff point for the SNARK rollup.
+  - `resolved_state_root_hash` (string): The resulting Matrix state resolution output hash computed by the ZK program.
+  - `zk_proof` (string): The base64-encoded, serialized Groth16 or Plonk SNARK receipt.
+  - `image_id` (string): The canonical program hash (SP1 verification key hash) utilized to generate the proof. This MUST strictly adhere to the expected hash for this `room_version`.
+- `delta` (object): The minimal, unverified Auth Chain events that have accumulated strictly after the `checkpoint.event_id`.
+  - `recent_state_events` (array of objects): Standard Matrix state events (PDUs). The joining server will natively execute standard state resolution over these final events on top of the checkpoint.
+
+**Error Responses:**
+
+- `401 Unauthorized` (with `M_UNAUTHORIZED`): The Server-Server signature is missing or invalid.
+- `404 Not Found` (with `M_NOT_FOUND`): The requested room is unknown to the resident server, or ZK proofs are not enabled/available for this room.
+- `429 Too Many Requests` (with `M_LIMIT_EXCEEDED`): Rate limit exceeded.
 
 ## Interaction Sequence
 
