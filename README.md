@@ -33,11 +33,27 @@ Built on the **SP1 RISC-V zkVM**, allowing native Rust libraries (`ruma-state-re
 
 ## API Specification
 
-We propose a new federated endpoint to securely retrieve these ZK rollups:
+We propose new endpoints to securely retrieve these ZK rollups.
 
-`GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/{roomId}`
+### 1. Server-to-Server (Federation API)
+When a Matrix homeserver joins a room, it requests the proof from a resident server.
 
-**Example Response:**
+**Request:**
+```http
+GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/!room:example.com
+Authorization: X-Matrix origin="joining.server",key="...",sig="..."
+```
+
+### 2. Client-to-Server (Client-Server API)
+The homeserver generously passes this exact proof down to end-user clients (Element, etc.) so they can perform edge-verification. The client requests the proof to verify the state trustlessly.
+
+**Request:**
+```http
+GET /_matrix/client/unstable/org.matrix.msc0000/rooms/!room:example.com/zk_state_proof
+Authorization: Bearer <access_token>
+```
+
+**Example Response (Both Endpoints):**
 ```json
 {
   "room_version": "12",
@@ -63,10 +79,11 @@ What does "verifying the proof" actually mean in practice?
 
 When you verify the receipt, you are cryptographically asserting: *"I see mathematical proof that running this specific Matrix Ruleset program (`image_id`) on starting state `A` deterministically resulted in end state `B`."*
 
-## Epoch Rollups
+## Epoch Rollups & Prover Interaction
 
 To prevent prohibitive CPU load, homeservers do not generate ZK proofs synchronously during a join. Instead, they generate **Epoch Rollups** asynchronously.
 
+- **The ZK Server (Prover Node):** Generating a STARK proof requires massive computational power (often utilizing GPU clusters). Standard Matrix homeservers (like Synapse) do not do this themselves. Instead, they delegate the heavy lifting to a specialized external ZK Prover over an internal API/queue. The homeserver feeds the raw Matrix events to the Prover, and the Prover eventually returns the completed `~300 byte` receipt.
 - **Frequency:** Provers compute a new rollup periodically (e.g., bi-weekly or every 10,000 events).
 - **Determinism:** They take the agreed-upon state from the *last* epoch, process the large DAG delta, and produce a new checkpoint `resolved_state_root_hash`. Because Matrix State Resolution (v2) is strictly deterministic, multiple nodes will calculate the identical state.
 - **Hybrid Verification:** When a node joins, it mathematically verifies the massive historic epoch in milliseconds using the Checkpoint SNARK. It then only performs native State Resolution on the tiny unproven event `delta` (the few events that happened since the last epoch cutoff).
