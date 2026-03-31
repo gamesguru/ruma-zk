@@ -108,7 +108,9 @@ pub struct DAGMergeOutput {
 
 pub fn main() {
     // Read the input from the Host (the world-state hint containing events)
-    let input: DAGMergeInput = sp1_zkvm::io::read();
+    let input_bytes: alloc::vec::Vec<u8> = sp1_zkvm::io::read();
+    let input: DAGMergeInput =
+        ciborium::from_reader(input_bytes.as_slice()).expect("Failed to parse CBOR inside zkVM");
 
     println!("cycle-count-start: resolution-initialization");
 
