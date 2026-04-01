@@ -13,7 +13,7 @@
 # IDEs and OS files
 .idea/
 .vscode/
-.env
+.env*
 /.tmp/
 
 # force add these if you really want some
