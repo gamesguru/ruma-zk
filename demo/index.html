@@ -49,9 +49,7 @@
     <div id="log">Status: Idle.</div>
 
     <script type="module">
-      import init, {
-        verify_matrix_join,
-      } from "../src/wasm-client/pkg/zk_matrix_wasm.js";
+      import init, { verify_matrix_join } from "../src/wasm-client/pkg/zk_matrix_wasm.js";
 
       async function runDemo() {
         try {
@@ -60,8 +58,7 @@
 
           document.getElementById("joinBtn").onclick = async () => {
             const log = document.getElementById("log");
-            log.innerText =
-              "[*] Fetching ZK Proof payload from Matrix Federation...\n";
+            log.innerText = "[*] Fetching ZK Proof payload from Matrix Federation...\n";
 
             // Mock network delay
             await new Promise((r) => setTimeout(r, 600));
