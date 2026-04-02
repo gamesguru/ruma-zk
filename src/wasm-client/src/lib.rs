@@ -17,26 +17,28 @@
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
-pub fn verify_matrix_join(proof_bytes: &[u8], _expected_vkey_hash: &[u8]) -> bool {
-    // In a fully built SP1 pipeline, you would use:
-    // match sp1_verifier::Groth16Verifier::verify(proof_bytes, _expected_vkey_hash) {
-    //     Ok(_) => true,
-    //     Err(_) => false,
-    // }
-
-    // For this demonstration, we ensure the proof is present and mock the
-    // cryptographic execution success.
+pub fn verify_matrix_join(
+    proof_bytes: &[u8],
+    public_inputs: &[u8],
+    expected_vkey_hash: &str,
+) -> bool {
     if proof_bytes.is_empty() {
         return false;
     }
 
-    true
+    sp1_verifier::Groth16Verifier::verify(
+        proof_bytes,
+        public_inputs,
+        expected_vkey_hash,
+        &sp1_verifier::GROTH16_VK_BYTES,
+    )
+    .is_ok()
 }
 
 #[wasm_bindgen]
-pub fn timed_verify(proof_bytes: &[u8]) -> String {
+pub fn timed_verify(proof_bytes: &[u8], public_inputs: &[u8], expected_vkey_hash: &str) -> String {
     let start = web_time::Instant::now();
-    let success = verify_matrix_join(proof_bytes, &[]);
+    let success = verify_matrix_join(proof_bytes, public_inputs, expected_vkey_hash);
     let duration = start.elapsed();
 
     format!(

@@ -65,13 +65,14 @@
 
             // Simulate the downloaded 312-byte Groth16 payload
             const proofBytes = new Uint8Array(312);
-            const vkeyHash = new Uint8Array(32);
+            const publicInputs = new Uint8Array(32);
+            const vkeyHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
             log.innerText +=
               "[~] Executing Cryptographic Verification natively in WebAssembly (254-bit BN curves)...\n";
 
             const startTime = performance.now();
-            const isValid = verify_matrix_join(proofBytes, vkeyHash);
+            const isValid = verify_matrix_join(proofBytes, publicInputs, vkeyHash);
             const executionTime = performance.now() - startTime;
 
             if (isValid) {
