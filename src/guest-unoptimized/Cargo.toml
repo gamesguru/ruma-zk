@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "zk-matrix-join-guest"
+name = "zk-matrix-join-guest-unoptimized"
 path = "main.rs"
 test = false
 
