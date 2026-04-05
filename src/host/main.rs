@@ -16,7 +16,7 @@
 
 use serde::{Deserialize, Serialize};
 use sp1_sdk::blocking::{ProveRequest, Prover, ProverClient};
-use sp1_sdk::SP1Stdin;
+use sp1_sdk::{HashableKey, ProvingKey, SP1Stdin};
 
 pub const ZK_MATRIX_GUEST_ELF: &[u8] = include_bytes!(env!("SP1_ELF_zk-matrix-join-guest"));
 pub const ZK_MATRIX_GUEST_UNOPTIMIZED_ELF: &[u8] =
@@ -375,6 +375,9 @@ fn main() {
         .setup(sp1_sdk::Elf::Static(target_elf))
         .unwrap();
 
+    std::fs::write("res/vk_hash.txt", pk.verifying_key().bytes32())
+        .expect("Failed to write Verification Key hash to artifacts");
+
     let mut stdin = SP1Stdin::new();
     if is_unoptimized {
         println!("> Running UNOPTIMIZED Pipeline (Memory-Heavy Graph Resolution)");
@@ -395,10 +398,22 @@ fn main() {
 
     if std::env::var("SP1_PROVE").is_ok() {
         println!("Generating STARK Proof for Matrix State Resolution...");
-        let mut proof = prover_client
-            .prove(&pk, stdin)
-            .run()
-            .expect("SP1 Proving failed!");
+
+        let mut proof = if std::env::var("SP1_GROTH16").is_ok() {
+            println!(
+                "Engaging recursive Groth16 Wrapper circuit for in-browser WASM verification!"
+            );
+            prover_client
+                .prove(&pk, stdin)
+                .groth16()
+                .run()
+                .expect("SP1 Groth16 Proving failed!")
+        } else {
+            prover_client
+                .prove(&pk, stdin)
+                .run()
+                .expect("SP1 Core STARK Proving failed!")
+        };
 
         println!("--------------------------------------------------");
         println!("✓ STARK Proof Generated Successfully!");

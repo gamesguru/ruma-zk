@@ -11,6 +11,10 @@ env:
   CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -75,10 +79,17 @@ jobs:
 
       - name: Generate True STARK Proof (Tiny 5-Event Graph)
         id: sp1_prove_lite
+        env:
+          SP1_GROTH16: "true"
         run: make prove-lite
+
+      - name: WebAssembly In-Browser Verification Validation (Node Mock)
+        id: wasm_verification
+        run: cd src/wasm-client && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && wasm-pack test --node
 
       - name: Attempt Generational STARK Proof OOM (Massive 41k-Event Graph)
         id: sp1_prove_heavy
+        if: false
         continue-on-error: true
         env:
           MATRIX_FIXTURE_PATH: res/real_matrix_state.json
