@@ -3,9 +3,9 @@ resolver = "2"
 members = ["src/host", "src/guest", "src/guest-unoptimized", "src/wasm-client"]
 
 [patch.crates-io]
-sp1-sdk = { path = "../risc/sp1/crates/sdk" }
-sp1-verifier = { path = "../risc/sp1/crates/verifier" }
-sp1-build = { path = "../risc/sp1/crates/build" }
-sp1-zkvm = { path = "../risc/sp1/crates/zkvm/entrypoint" }
-sp1-core-executor = { path = "../risc/sp1/crates/core/executor" }
-sp1-core-machine = { path = "../risc/sp1/crates/core/machine" }
+sp1-sdk = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
+sp1-verifier = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
+sp1-build = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
+sp1-zkvm = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
+sp1-core-executor = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
+sp1-core-machine = { git = "https://github.com/gamesguru/sp1.git", branch = "main" }
