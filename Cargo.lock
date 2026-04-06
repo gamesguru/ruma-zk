@@ -6280,6 +6280,7 @@ name = "zk-matrix-pure-plonky3"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "memmap2",
  "rand",
  "slop-air",
  "slop-algebra",
