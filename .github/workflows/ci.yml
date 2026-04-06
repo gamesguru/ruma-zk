@@ -87,10 +87,8 @@ jobs:
         id: wasm_verification
         run: cd src/wasm-client && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && wasm-pack test --node
 
-      - name: Attempt Generational STARK Proof OOM (Massive 41k-Event Graph)
+      - name: Generate Execution STARK Proof (Massive 41k-Event Graph)
         id: sp1_prove_heavy
-        if: false
-        continue-on-error: true
         env:
           MATRIX_FIXTURE_PATH: res/real_matrix_state.json
         run: make prove
@@ -105,7 +103,7 @@ jobs:
           for SIZE in 1000 5000 10000; do
             echo "Processing $SIZE events..."
 
-            # 1. Create fixture
+            # Create fixture
             if [ -f "res/real_matrix_state.json" ]; then
               jq ".[0:$SIZE]" res/real_matrix_state.json > res/real_${SIZE}.json
             else
@@ -113,19 +111,20 @@ jobs:
               MATRIX_FIXTURE_PATH=res/real_${SIZE}.json python3 scripts/generate_massive_data.py --count $SIZE
             fi
 
-            # 2. Run Naive
+            # Run Naive
             NAIVE_OUTPUT=$(MATRIX_FIXTURE_PATH=res/real_${SIZE}.json EXECUTE_UNOPTIMIZED=1 cargo run --release --bin zk-matrix-join-host)
             NAIVE_CYCLES=$(echo "$NAIVE_OUTPUT" | grep "RISC-V CPU Cycles Used:" | awk '{print $NF}')
 
-            # 3. Run Optimized
+            # Run Optimized
             OPTIMIZED_OUTPUT=$(MATRIX_FIXTURE_PATH=res/real_${SIZE}.json cargo run --release --bin zk-matrix-join-host)
             OPTIMIZED_CYCLES=$(echo "$OPTIMIZED_OUTPUT" | grep "RISC-V CPU Cycles Used:" | awk '{print $NF}')
 
-            # 4. Calculate Speedup
+            # Calculate Speedup
             SPEEDUP=$(awk "BEGIN {print $NAIVE_CYCLES / $OPTIMIZED_CYCLES}")
 
             echo "| **Industry Standard AIR (Unoptimized)** | $NAIVE_CYCLES | $OPTIMIZED_CYCLES | **${SPEEDUP:0:4}x** | \[✓\] |" >> $GITHUB_STEP_SUMMARY
           done
+
       - name: Print Benchmark Narrative
         run: |
           echo "=========================================================="
