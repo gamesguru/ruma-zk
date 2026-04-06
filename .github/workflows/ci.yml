@@ -87,12 +87,6 @@ jobs:
         id: wasm_verification
         run: cd src/wasm-client && curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh && wasm-pack test --node
 
-      - name: Generate Execution STARK Proof (Massive 41k-Event Graph)
-        id: sp1_prove_heavy
-        env:
-          MATRIX_FIXTURE_PATH: res/real_matrix_state.json
-        run: make prove
-
       - name: Benchmark Matrix Performance (Multi-Point Comparison)
         run: |
           sudo apt-get install -y jq
@@ -125,17 +119,11 @@ jobs:
             echo "| **Industry Standard AIR (Unoptimized)** | $NAIVE_CYCLES | $OPTIMIZED_CYCLES | **${SPEEDUP:0:4}x** | \[✓\] |" >> $GITHUB_STEP_SUMMARY
           done
 
-      - name: Print Benchmark Narrative
-        run: |
-          echo "=========================================================="
-          echo " Path A Simulation & Proof Results:"
-          echo " The massive 40k+ event state graph successfully verified"
-          echo " inside the RISC-V executor. By flattening the DAG,"
-          echo " we achieve O(N) topological bounds, doing the impossible"
-          echo " compared to heavy nested hash maps!"
-          echo " Note: Generating a true STARK proof for 40k+ events"
-          echo " mathematically maxes out GitHub CI RAM, validating our hypothesis!"
-          echo "=========================================================="
+      - name: Generate Execution STARK Proof (Massive 41k-Event Graph)
+        id: sp1_prove_heavy
+        env:
+          MATRIX_FIXTURE_PATH: res/real_matrix_state.json
+        run: make prove
 
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
