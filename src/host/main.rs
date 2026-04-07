@@ -336,21 +336,46 @@ fn main() {
         events.len()
     );
 
-    let mut edges: Vec<([u8; 32], [u8; 32])> = Vec::new();
-    fn hash_str(s: &str) -> [u8; 32] {
+    let mut edges: Vec<(u32, u32)> = Vec::new();
+    const DIMS: usize = 10;
+
+    fn event_to_coordinate(s: &str) -> u32 {
         let mut h = Sha256::new();
         h.update(s.as_bytes());
-        h.finalize().into()
+        let hash_bytes = h.finalize();
+        let val = u32::from_be_bytes([hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3]]);
+        val & ((1 << DIMS) - 1)
     }
 
+    let mut last_coord = 0;
     for event in &events {
-        let current_hash = hash_str(event.event_id.as_str());
+        let target_coord = event_to_coordinate(event.event_id.as_str());
+
+        let mut parents = Vec::new();
         for prev in &event.prev_events {
-            edges.push((current_hash, hash_str(prev.as_str())));
+            parents.push(prev.as_str().to_string());
         }
-        if event.prev_events.is_empty() {
-            edges.push((current_hash, [0u8; 32])); // root fallback
+        if parents.is_empty() {
+            parents.push(last_coord.to_string());
         }
+
+        for prev_str in parents {
+            let mut curr = if prev_str == last_coord.to_string() {
+                last_coord
+            } else {
+                event_to_coordinate(&prev_str)
+            };
+
+            while curr != target_coord {
+                let diff = curr ^ target_coord;
+                let bit_to_flip = diff.trailing_zeros() as usize;
+                let next = curr ^ (1 << bit_to_flip);
+
+                edges.push((curr, next));
+                curr = next;
+            }
+        }
+        last_coord = target_coord;
     }
 
     println!("> [Security] Validating SP1 Groth16 Trusted Setup against vuln-002-VeilCash...");
@@ -651,20 +676,47 @@ mod tests {
         // ZKVM Guest Execution (Simulation)
         let prover_client = ProverClient::from_env();
 
-        let mut edges: std::vec::Vec<([u8; 32], [u8; 32])> = std::vec::Vec::new();
-        fn hash_str(s: &str) -> [u8; 32] {
+        let mut edges: Vec<(u32, u32)> = Vec::new();
+        const DIMS: usize = 10;
+
+        fn event_to_coordinate(s: &str) -> u32 {
             let mut h = sha2::Sha256::new();
             h.update(s.as_bytes());
-            h.finalize().into()
+            let hash_bytes = h.finalize();
+            let val =
+                u32::from_be_bytes([hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3]]);
+            val & ((1 << DIMS) - 1)
         }
+
+        let mut last_coord = 0;
         for (id, ev) in &input.event_map {
-            let current_hash = hash_str(id.as_str());
+            let target_coord = event_to_coordinate(id.as_str());
+
+            let mut parents = Vec::new();
             for prev in &ev.prev_events {
-                edges.push((current_hash, hash_str(prev.as_str())));
+                parents.push(prev.as_str().to_string());
             }
-            if ev.prev_events.is_empty() {
-                edges.push((current_hash, [0u8; 32]));
+            if parents.is_empty() {
+                parents.push(last_coord.to_string());
             }
+
+            for prev_str in parents {
+                let mut curr = if prev_str == last_coord.to_string() {
+                    last_coord
+                } else {
+                    event_to_coordinate(&prev_str)
+                };
+
+                while curr != target_coord {
+                    let diff = curr ^ target_coord;
+                    let bit_to_flip = diff.trailing_zeros() as usize;
+                    let next = curr ^ (1 << bit_to_flip);
+
+                    edges.push((curr, next));
+                    curr = next;
+                }
+            }
+            last_coord = target_coord;
         }
 
         let mut stdin = SP1Stdin::new();

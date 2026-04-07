@@ -29,9 +29,7 @@ pub struct DAGMergeOutput {
 }
 
 pub fn main() {
-    // Read the flattened Matrix DAG edges from the host via CBOR
-    // Each edge represents (Current Node Hash, Next Node Parent Hash)
-    let edges: Vec<([u8; 32], [u8; 32])> = sp1_zkvm::io::read();
+    let edges: Vec<(u32, u32)> = sp1_zkvm::io::read();
     let expected_hash: [u8; 32] = sp1_zkvm::io::read();
 
     println!("cycle-count-start: resolution-initialization");
@@ -40,10 +38,6 @@ pub fn main() {
 
     let total_edges = edges.len();
 
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-
-    #[allow(unused_variables)]
     for (i, edge) in edges.iter().enumerate() {
         if i % 5000 == 0 || i == total_edges - 1 {
             println!(
@@ -52,16 +46,9 @@ pub fn main() {
             );
         }
 
-        // Safely constrain the DAG edges in the zkVM without unsafe precompiles by hashing them.
-        hasher.update(edge.0);
-        hasher.update(edge.1);
+        // Offload the exact edge verification to our custom upstreamed SP1 Precompile!
+        sp1_zkvm::syscalls::syscall_topological_route(edge.0, edge.1);
     }
-
-    let topological_commitment: [u8; 32] = hasher.finalize().into();
-    println!(
-        "  [SP1 VM] Evaluated DAG topological commitment: {:?}",
-        topological_commitment
-    );
 
     println!("Finished topological reduction.");
 
