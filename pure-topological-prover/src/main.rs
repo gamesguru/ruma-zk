@@ -11,7 +11,6 @@ use p3_matrix::Matrix;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
 use p3_uni_stark::{prove, StarkConfig};
-use rand::Rng;
 
 /// The number of dimensions in our hypercube.
 const DIMS: usize = 10;
@@ -66,44 +65,133 @@ impl<AB: AirBuilder> Air<AB> for TopologicalRouterAir {
     }
 }
 
-fn generate_trace<F: PrimeField32>(num_hops: usize) -> RowMajorMatrix<F> {
-    let mut rng = rand::thread_rng();
-    let mut trace = Vec::with_capacity(num_hops * DIMS * 2);
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::fs;
 
-    let mut current_node: u32 = 0;
+// Deterministically map a Matrix Event ID to a 10-bit Hypercube coordinate
+fn event_to_coordinate(event_id: &str) -> u32 {
+    let mut hasher = Sha256::new();
+    hasher.update(event_id.as_bytes());
+    let hash_bytes = hasher.finalize();
+    // Take first 4 bytes, convert to u32, mask to DIMS (e.g., 10 bits)
+    let val = u32::from_be_bytes([hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3]]);
+    val & ((1 << DIMS) - 1)
+}
 
-    for _ in 0..num_hops {
-        let mut row = vec![F::zero(); DIMS * 2];
+fn generate_ruma_trace<F: PrimeField32>(json_path: &str) -> RowMajorMatrix<F> {
+    let file_data =
+        fs::read_to_string(json_path).unwrap_or_else(|_| panic!("Failed to read {}", json_path));
+    let events: Vec<Value> = serde_json::from_str(&file_data).expect("Invalid JSON");
 
-        // Fill node bits
-        for (i, val) in row.iter_mut().enumerate().take(DIMS) {
-            *val = F::from_canonical_u32((current_node >> i) & 1);
+    let mut trace = Vec::new();
+    let mut current_node = 0; // Keep track of the last node for padding
+
+    println!(
+        "Ingested {} real Matrix events. Routing over Hypercube...",
+        events.len()
+    );
+
+    // Iterate through the DAG edges
+    let mut last_event_id: Option<String> = None;
+
+    for event in events {
+        let event_id = event["event_id"].as_str().unwrap_or("");
+        if event_id.is_empty() {
+            continue;
         }
 
-        // Randomly pick exactly one bit to flip for the next hop
-        let flip_idx = rng.gen_range(0..DIMS);
-        row[DIMS + flip_idx] = F::one();
+        let target_coord = event_to_coordinate(event_id);
 
-        trace.extend(row);
-        current_node ^= 1 << flip_idx;
+        let mut parents = Vec::new();
+        if let Some(prev_events) = event.get("prev_events").and_then(|p| p.as_array()) {
+            for p in prev_events {
+                if let Some(s) = p.as_str() {
+                    if !s.is_empty() {
+                        parents.push(s.to_string());
+                    }
+                }
+            }
+        }
+
+        if parents.is_empty() {
+            if let Some(ref last) = last_event_id {
+                parents.push(last.clone());
+            }
+        }
+
+        for prev_str in parents {
+            let mut curr = event_to_coordinate(&prev_str);
+
+            // Route from `curr` to `target_coord` one bit at a time
+            while curr != target_coord {
+                let diff = curr ^ target_coord;
+                let bit_to_flip = diff.trailing_zeros() as usize;
+                let next = curr ^ (1 << bit_to_flip);
+
+                let mut row = vec![F::zero(); DIMS * 2];
+                for (d, val) in row.iter_mut().enumerate().take(DIMS) {
+                    *val = F::from_canonical_u32((curr >> d) & 1);
+                }
+                row[DIMS + bit_to_flip] = F::one();
+
+                trace.extend(row);
+                curr = next;
+                current_node = next;
+            }
+        }
+        last_event_id = Some(event_id.to_string());
     }
 
+    if trace.is_empty() {
+        // Fallback for empty DAG routing, ensure at least 1 power of 2
+        let mut row = vec![F::zero(); DIMS * 2];
+        row[DIMS] = F::one(); // flip bit 0
+        trace.extend(row);
+    }
+
+    let num_rows = trace.len() / (DIMS * 2);
+    let padded_rows = num_rows.next_power_of_two();
+
+    for _ in num_rows..padded_rows {
+        let bit_to_flip = 0;
+        let next = current_node ^ 1;
+
+        let mut row = vec![F::zero(); DIMS * 2];
+        for (d, val) in row.iter_mut().enumerate().take(DIMS) {
+            *val = F::from_canonical_u32((current_node >> d) & 1);
+        }
+        row[DIMS + bit_to_flip] = F::one();
+
+        trace.extend(row);
+        current_node = next;
+    }
+
+    println!("Trace padded to {} rows (Power of 2).", padded_rows);
     RowMajorMatrix::new(trace, DIMS * 2)
 }
 
 fn main() {
     tracing_subscriber::fmt::init();
 
-    let log_n = 17; // 131,072 rows
-    let num_rows = 1 << log_n;
-
     println!("--- Pure Plonky3 Topological Router Benchmark ---");
     println!("Dimensions: {}", DIMS);
-    println!("Rows (Hops): {}", num_rows);
 
     // Generate Trace
     let now = std::time::Instant::now();
-    let trace = generate_trace::<BabyBear>(num_rows);
+
+    // Support running from both the workspace root and the crate directory
+    let json_path = if std::path::Path::new("res/real_10k.json").exists() {
+        "res/real_10k.json"
+    } else {
+        "../res/real_10k.json"
+    };
+
+    let trace = generate_ruma_trace::<BabyBear>(json_path);
+    let num_rows = trace.height();
+    let log_n = trace.height().trailing_zeros() as usize;
+
+    println!("Rows (Hops): {}", num_rows);
     println!("Trace generation took: {:?}", now.elapsed());
 
     // Evaluate Constraints natively (just measuring iteration)
@@ -145,7 +233,8 @@ fn main() {
     );
 
     println!(
-        "Execution trace of 131,072 hops generated and constraint-verified successfully in memory."
+        "Execution trace of {} hops generated and constraint-verified successfully in memory.",
+        num_rows
     );
     println!("This trace is Degree-2 and uses only {} columns.", DIMS * 2);
     println!(
@@ -215,4 +304,15 @@ fn main() {
         println!("{}", line);
     }
     println!("... (full JSON trace saved to purely-topological-prover/proof.json)");
+
+    println!("\n--- Verifying STARK Proof ---");
+    // Re-initialize a clean challenger for the Verifier
+    let verifier_hash_challenger = HashChallenger::new(vec![], ByteHash {});
+    let mut verifier_challenger = SerializingChallenger32::new(verifier_hash_challenger);
+
+    let verify_start = std::time::Instant::now();
+    p3_uni_stark::verify(&config, &air, &mut verifier_challenger, &_proof, &vec![])
+        .expect("STARK Proof verification failed!");
+    println!("STARK Verification Time: {:?}", verify_start.elapsed());
+    println!("Verification successful! The Topological Math holds.");
 }
