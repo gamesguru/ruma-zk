@@ -175,16 +175,16 @@ fn main() {
     tracing_subscriber::fmt::init();
 
     println!("--- Pure Plonky3 Topological Router Benchmark ---");
-    println!("Dimensions: {}", DIMS);
+    println!("Hypercube dimensions: {}", DIMS);
 
     // Generate Trace
     let now = std::time::Instant::now();
 
     // Support running from both the workspace root and the crate directory
-    let json_path = if std::path::Path::new("res/real_10k.json").exists() {
-        "res/real_10k.json"
+    let json_path = if std::path::Path::new("res/real_matrix_state.json").exists() {
+        "res/real_matrix_state.json"
     } else {
-        "../res/real_10k.json"
+        "../res/real_matrix_state.json"
     };
 
     let trace = generate_ruma_trace::<BabyBear>(json_path);
@@ -238,8 +238,8 @@ fn main() {
     );
     println!("This trace is Degree-2 and uses only {} columns.", DIMS * 2);
     println!(
-        "RAM usage for this trace: ~{} MB",
-        (num_rows * DIMS * 2 * 4) / 1024 / 1024
+        "RAM usage for this trace: ~{:.1} MB",
+        (num_rows * DIMS * 2 * 4) as f64 / 1024.0 / 1024.0
     );
 
     println!("\n--- Setting up Vanilla Plonky3 STARK Configuration ---");
