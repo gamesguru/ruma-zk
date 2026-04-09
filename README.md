@@ -105,6 +105,11 @@ Authorization: Bearer <access_token>
 }
 ```
 
+## Project Architecture
+
+- [Architectural Paths](docs/architectural-paths.md): High-level overview of our ZK strategy.
+- [Topological Reducer Speedup](docs/topological-reducer-speedup.md): Deep dive into how we achieved 3.4M cycles for 10k events.
+
 ## How It Works: The Proof, Journal, and Receipt
 
 What does "verifying the proof" actually mean in practice?

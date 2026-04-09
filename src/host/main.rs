@@ -405,34 +405,65 @@ fn main() {
         ZK_MATRIX_GUEST_ELF
     };
 
-    let dim = option_env!("SP1_TOPOLOGY_DIM").unwrap_or("10");
-    let pk_path = format!("res/pk_{}.bin", dim);
-
-    let pk = if std::path::Path::new(&pk_path).exists() && !is_unoptimized {
-        println!(
-            "> Loading pre-compiled {}-bit Proving Key from {}...",
-            dim, pk_path
-        );
-        let pk_bytes = std::fs::read(&pk_path).expect("Failed to read pk.bin");
-        bincode::deserialize(&pk_bytes).expect("Failed to deserialize Proving Key")
+    let dim_str = if is_unoptimized {
+        "full_spec".to_string()
     } else {
-        println!("> Initializing SP1 Prover for one-time circuit compilation...");
-        let prover_client = ProverClient::from_env();
+        option_env!("SP1_TOPOLOGY_DIM").unwrap_or("10").to_string()
+    };
+    let pk_path = format!("res/pk_{}.bin", dim_str);
+
+    if !is_unoptimized {
         println!(
-            "> Building new {}-bit circuit constraints (this takes 15-30 mins on CPU)...",
-            dim
+            "> Hypercube Configuration: {}-bit ({} slots)",
+            dim_str,
+            1 << dim_str.parse::<usize>().unwrap_or(10)
         );
-        prover_client
-            .setup(sp1_sdk::Elf::Static(target_elf))
-            .unwrap()
+    }
+
+    // Only require the Proving Key if we are actually generating a real proof.
+    // For simulation/instruction counts, we can skip this 20-minute setup!
+    let is_proving = std::env::var("SP1_PROVE").is_ok();
+
+    let mode_str = if is_unoptimized {
+        "Full Spec".to_string()
+    } else {
+        format!("{}-bit", dim_str)
     };
 
-    let vk = pk.verifying_key();
-    let vk_bytes = bincode::serialize(vk).expect("Failed to serialize VK");
-    std::fs::write("res/vk.bin", vk_bytes).expect("Failed to write VK bin");
+    let pk = if !is_proving {
+        None
+    } else if std::path::Path::new(&pk_path).exists() {
+        println!(
+            "> Loading pre-compiled {} Proving Key from {}...",
+            mode_str, pk_path
+        );
+        let pk_bytes = std::fs::read(&pk_path).expect("Failed to read pk.bin");
+        Some(
+            bincode::deserialize::<sp1_sdk::blocking::EnvProvingKey>(&pk_bytes)
+                .expect("Failed to deserialize Proving Key"),
+        )
+    } else {
+        println!("> Initializing SP1 VM for one-time circuit compilation...");
+        let prover_client = ProverClient::from_env();
+        println!(
+            "> Building new {} circuit constraints (this takes 15-30 mins on CPU)...",
+            mode_str
+        );
+        Some(
+            prover_client
+                .setup(sp1_sdk::Elf::Static(target_elf))
+                .unwrap(),
+        )
+    };
 
-    std::fs::write("res/vk_hash.txt", vk.bytes32())
-        .expect("Failed to write Verification Key hash to artifacts");
+    if let Some(ref pk) = pk {
+        let vk = pk.verifying_key();
+        let vk_bytes = bincode::serialize(vk).expect("Failed to serialize VK");
+        std::fs::write("res/vk.bin", vk_bytes).expect("Failed to write VK bin");
+
+        std::fs::write("res/vk_hash.txt", vk.bytes32())
+            .expect("Failed to write Verification Key hash to artifacts");
+    }
 
     // Also write the full resolved state to a file for reference
     let mut stringified_state_map = BTreeMap::new();
@@ -467,6 +498,7 @@ fn main() {
         println!("Generating STARK Proof for Matrix State Resolution...");
 
         let prove_mode = std::env::var("SP1_PROVE_MODE").unwrap_or_default();
+        let pk = pk.expect("Proving Key is required for real proving!");
 
         let mut proof = if prove_mode == "groth16" || std::env::var("SP1_GROTH16").is_ok() {
             println!(
