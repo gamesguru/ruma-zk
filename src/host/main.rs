@@ -698,7 +698,6 @@ fn has_duplicate_g2_elements(vk_bytes: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ruma_state_res::resolve;
 
     /// Simulates a successful state resolution with active Ruma Event types.
     #[test]
@@ -740,26 +739,13 @@ mod tests {
             event_type,
             prev_events,
             auth_events,
+            public_key: None,
+            signature: None,
+            verified_on_host: false,
         };
-
-        let mut state_map = StateMap::new();
-        state_map.insert(
-            ("m.room.member".into(), "@user:example.com".to_string()),
-            event_id.clone(),
-        );
 
         let mut event_map = BTreeMap::new();
         event_map.insert(event_id.clone(), guest_event);
-
-        let mut auth_chain_set = HashSet::new();
-        auth_chain_set.insert(event_id);
-
-        // let input = DAGMergeInput {
-        //     room_version: RoomVersionId::V10,
-        //     state_to_resolve: vec![state_map],
-        //     auth_chains: vec![auth_chain_set],
-        //     event_map,
-        // };
 
         let mut edges: std::vec::Vec<([u8; 32], [u8; 32])> = std::vec::Vec::new();
         fn hash_str(s: &str) -> [u8; 32] {
@@ -818,49 +804,57 @@ mod tests {
             event_type: TimelineEventType::RoomMember,
             prev_events: vec![],
             auth_events: vec![],
+            public_key: None,
+            signature: None,
+            verified_on_host: false,
         };
-
-        let mut state_map = StateMap::new();
-        state_map.insert(
-            ("m.room.member".into(), "@user:example.com".to_string()),
-            event_id.clone(),
-        );
 
         let mut event_map = BTreeMap::new();
         event_map.insert(event_id.clone(), guest_event);
 
-        let mut auth_chain_set = HashSet::new();
-        auth_chain_set.insert(event_id);
-
-        let input = DAGMergeInput {
+        let _input = DAGMergeInput {
             room_version: RoomVersionId::V10,
-            state_to_resolve: vec![state_map.clone()],
-            auth_chains: vec![auth_chain_set],
             event_map: event_map.clone(),
         };
 
         // Host Native Resolution (Ground Truth)
-        let rules = input.room_version.rules().unwrap();
-        let state_res_v2_rules = rules.state_res.v2_rules().unwrap();
+        let mut conflicted_events = HashMap::new();
+        for (id, guest_ev) in &event_map {
+            let lean_ev = LeanEvent {
+                event_id: id.to_string(),
+                power_level: 0,
+                origin_server_ts: guest_ev.origin_server_ts().0.into(),
+                prev_events: guest_ev
+                    .prev_events
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+            };
+            conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
+        }
 
-        let native_resolved = resolve(
-            &rules.authorization,
-            state_res_v2_rules,
-            &input.state_to_resolve,
-            input.auth_chains.clone(),
-            |id| input.event_map.get(id).cloned(),
-            |_| Some(HashSet::new()),
-        )
-        .expect("Native resolution failed");
+        let sorted_ids = ruma_lean::lean_kahn_sort(&conflicted_events);
+        let mut native_resolved = BTreeMap::new();
+        for id in sorted_ids {
+            let eid = OwnedEventId::try_from(id).unwrap();
+            if let Some(ev) = event_map.get(&eid) {
+                let key = (
+                    ev.event_type.to_string(),
+                    ev.event
+                        .get("state_key")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+                );
+                native_resolved.insert(key, ev.event_id.clone());
+            }
+        }
 
         let mut native_hasher = Sha256::new();
-        for ((event_type, state_key), id) in native_resolved {
-            let event_type = event_type as ruma_events::StateEventType;
-            let state_key: String = state_key;
-            let id: OwnedEventId = id;
-
-            native_hasher.update(event_type.to_string().as_bytes());
-            native_hasher.update(state_key.as_bytes());
+        for (key, id) in native_resolved {
+            native_hasher.update(key.0.as_bytes());
+            native_hasher.update(key.1.as_bytes());
             native_hasher.update(id.as_str().as_bytes());
         }
         let native_hash: [u8; 32] = native_hasher.finalize().into();
@@ -893,7 +887,7 @@ mod tests {
         }
 
         let mut last_coord = 0;
-        for (id, ev) in &input.event_map {
+        for (id, ev) in &event_map {
             let target_coord = event_to_coordinate(id.as_str());
 
             let mut parents = Vec::new();
@@ -989,48 +983,52 @@ mod tests {
                         event_type: serde_json::from_value(ev["type"].clone()).unwrap(),
                         prev_events: serde_json::from_value(ev["prev_events"].clone()).unwrap(),
                         auth_events: serde_json::from_value(ev["auth_events"].clone()).unwrap(),
+                        public_key: None,
+                        signature: None,
+                        verified_on_host: false,
                     },
                 )
             })
             .collect();
 
-        let mut state_map = StateMap::new();
-        let mut auth_chains = Vec::new();
-        let mut auth_id_set = HashSet::new();
-
-        for (id, ev) in &event_map {
-            let key = (
-                ev.event_type.to_string().into(),
-                ev.event
-                    .get("state_key")
-                    .unwrap()
-                    .as_str()
-                    .unwrap()
-                    .to_string(),
-            );
-            state_map.insert(key, id.clone());
-            auth_id_set.insert(id.clone());
-        }
-        auth_chains.push(auth_id_set);
-
         // Host Native Resolution
-        let rules = RoomVersionId::V10.rules().unwrap();
-        let state_res_v2_rules = rules.state_res.v2_rules().unwrap();
+        let mut conflicted_events = HashMap::new();
+        for (id, guest_ev) in &event_map {
+            let lean_ev = LeanEvent {
+                event_id: id.to_string(),
+                power_level: 0,
+                origin_server_ts: guest_ev.origin_server_ts().0.into(),
+                prev_events: guest_ev
+                    .prev_events
+                    .iter()
+                    .map(|id| id.to_string())
+                    .collect(),
+            };
+            conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
+        }
 
-        let native_resolved = resolve(
-            &rules.authorization,
-            state_res_v2_rules,
-            &vec![state_map],
-            auth_chains,
-            |id| event_map.get(id).cloned(),
-            |_| Some(HashSet::new()),
-        )
-        .expect("Native resolution failed");
+        let sorted_ids = ruma_lean::lean_kahn_sort(&conflicted_events);
+        let mut native_resolved = BTreeMap::new();
+        for id in sorted_ids {
+            let eid = OwnedEventId::try_from(id).unwrap();
+            if let Some(ev) = event_map.get(&eid) {
+                let key = (
+                    ev.event_type.to_string(),
+                    ev.event
+                        .get("state_key")
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string(),
+                );
+                native_resolved.insert(key, ev.event_id.clone());
+            }
+        }
 
         let mut hasher = Sha256::new();
-        for ((event_type, state_key), id) in native_resolved {
-            hasher.update(event_type.to_string().as_bytes());
-            hasher.update(state_key.as_bytes());
+        for (key, id) in native_resolved {
+            hasher.update(key.0.as_bytes());
+            hasher.update(key.1.as_bytes());
             hasher.update(id.as_str().as_bytes());
         }
         let hash: [u8; 32] = hasher.finalize().into();
