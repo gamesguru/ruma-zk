@@ -337,7 +337,19 @@ fn main() {
     );
 
     let mut edges: Vec<(u32, u32)> = Vec::new();
-    const DIMS: usize = 10;
+    const DIMS: usize = match option_env!("SP1_TOPOLOGY_DIM") {
+        Some(s) => {
+            let mut val = 0;
+            let bytes = s.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                val = val * 10 + (bytes[i] - b'0') as usize;
+                i += 1;
+            }
+            val
+        }
+        None => 10,
+    };
 
     fn event_to_coordinate(s: &str) -> u32 {
         let mut h = Sha256::new();
@@ -396,9 +408,17 @@ fn main() {
         ZK_MATRIX_GUEST_ELF
     };
 
-    let pk = prover_client
-        .setup(sp1_sdk::Elf::Static(target_elf))
-        .unwrap();
+    let pk_path = "res/pk.bin";
+    let pk = if std::path::Path::new(pk_path).exists() && !is_unoptimized {
+        println!("> Loading pre-compiled Proving Key from {}...", pk_path);
+        let pk_bytes = std::fs::read(pk_path).expect("Failed to read pk.bin");
+        bincode::deserialize(&pk_bytes).expect("Failed to deserialize Proving Key")
+    } else {
+        println!("> Building new circuit constraints (one-time setup)...");
+        prover_client
+            .setup(sp1_sdk::Elf::Static(target_elf))
+            .unwrap()
+    };
 
     let vk = pk.verifying_key();
     let vk_bytes = bincode::serialize(vk).expect("Failed to serialize VK");
@@ -438,7 +458,9 @@ fn main() {
     if std::env::var("SP1_PROVE").is_ok() {
         println!("Generating STARK Proof for Matrix State Resolution...");
 
-        let mut proof = if std::env::var("SP1_GROTH16").is_ok() {
+        let prove_mode = std::env::var("SP1_PROVE_MODE").unwrap_or_default();
+
+        let mut proof = if prove_mode == "groth16" || std::env::var("SP1_GROTH16").is_ok() {
             println!(
                 "Engaging recursive Groth16 Wrapper circuit for in-browser WASM verification!"
             );
@@ -447,7 +469,15 @@ fn main() {
                 .groth16()
                 .run()
                 .expect("SP1 Groth16 Proving failed!")
+        } else if prove_mode == "compressed" {
+            println!("Engaging compressed STARK proof mode!");
+            prover_client
+                .prove(&pk, stdin)
+                .compressed()
+                .run()
+                .expect("SP1 Compressed STARK Proving failed!")
         } else {
+            println!("Engaging Core STARK proof mode!");
             prover_client
                 .prove(&pk, stdin)
                 .run()
@@ -463,9 +493,9 @@ fn main() {
             hex::encode(output.resolved_state_hash)
         );
 
-        println!("Saving STARK Proof to res/proof-with-io.json...");
+        println!("Saving STARK Proof to res/proof-with-io.bin...");
         proof
-            .save("res/proof-with-io.json")
+            .save("res/proof-with-io.bin")
             .expect("Failed to save proof file");
     } else {
         println!("Simulating Verifiable Execution for Matrix State Resolution...");
@@ -691,7 +721,19 @@ mod tests {
         let prover_client = ProverClient::from_env();
 
         let mut edges: Vec<(u32, u32)> = Vec::new();
-        const DIMS: usize = 10;
+        const DIMS: usize = match option_env!("SP1_TOPOLOGY_DIM") {
+        Some(s) => {
+            let mut val = 0;
+            let bytes = s.as_bytes();
+            let mut i = 0;
+            while i < bytes.len() {
+                val = val * 10 + (bytes[i] - b'0') as usize;
+                i += 1;
+            }
+            val
+        }
+        None => 10,
+    };
 
         fn event_to_coordinate(s: &str) -> u32 {
             let mut h = sha2::Sha256::new();

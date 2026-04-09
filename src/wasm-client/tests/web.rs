@@ -27,11 +27,11 @@ struct SP1ProofWithPublicValuesMock {
 #[wasm_bindgen_test]
 fn test_groth16_verification() {
     // We expect the CI pipeline to execute the host and generate a valid proof inside the workspace `res` folder
-    let proof_json = include_str!("../../../res/proof-with-io.json");
+    let proof_bytes_with_io = include_bytes!("../../../res/proof-with-io.bin");
 
-    // Parse the JSON Payload emitted by SP1
-    let payload: SP1ProofWithPublicValuesMock = serde_json::from_str(proof_json)
-        .expect("Failed to deserialize STARK/SNARK JSON proof emitted by Host");
+    // Parse the binary Payload emitted by SP1
+    let payload: SP1ProofWithPublicValuesMock = bincode::deserialize(proof_bytes_with_io)
+        .expect("Failed to deserialize STARK/SNARK binary proof emitted by Host");
 
     let groth16_wrapper = payload.proof.groth16.expect(
         "The emitted proof was a Core STARK. Did you forget to set SP1_GROTH16=true in the runner?",

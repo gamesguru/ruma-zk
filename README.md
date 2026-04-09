@@ -153,6 +153,19 @@ To run the simulated validations natively in Rust (without burning CPU on full S
 cargo test
 ```
 
+## Configuration
+
+You can configure the type of proof generated using the `SP1_PROVE_MODE` environment variable. The following modes are supported:
+
+- `raw` (default): Generates a standard Core STARK proof.
+- `compressed`: Generates a compressed STARK proof.
+- `groth16`: Engages the recursive Groth16 Wrapper circuit, generating a SNARK suitable for in-browser WASM verification.
+
+Example usage:
+```bash
+SP1_PROVE=1 SP1_PROVE_MODE=compressed cargo run --bin zk-matrix-join-host
+```
+
 ## Security & Memory Safety
 
 The SP1 zkVM runs standard RISC-V code. Vulnerabilities in the zkVM itself often rely on manipulating memory via unchecked pointers (e.g., the LambdaClass zero-register exploit requires an arbitrary memory write to address `0`).

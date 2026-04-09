@@ -11,6 +11,10 @@ path = "main.rs"
 name = "zk-matrix-join-verify"
 path = "verify.rs"
 
+[[bin]]
+name = "zk-matrix-join-setup"
+path = "setup_circuit.rs"
+
 [dependencies]
 sp1-sdk = { version = "6.0.2", features = ["blocking"] }
 serde = { version = "1.0", features = ["derive"] }

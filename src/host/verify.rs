@@ -8,7 +8,7 @@ pub struct DAGMergeOutput {
 }
 
 fn main() {
-    let proof_path = "res/proof-with-io.json";
+    let proof_path = "res/proof-with-io.bin";
     let vk_hash_path = "res/vk_hash.txt";
     let vk_bin_path = "res/vk.bin";
 
