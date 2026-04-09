@@ -398,9 +398,6 @@ fn main() {
     }
     println!("  [✓] Verification Key is mathematically sound. Phase 2 entropy verified.");
 
-    println!("> Initializing SP1 Prover (Fetching setup parameters...)");
-    let prover_client = ProverClient::from_env();
-
     let is_unoptimized = std::env::var("EXECUTE_UNOPTIMIZED").is_ok();
     let target_elf = if is_unoptimized {
         ZK_MATRIX_GUEST_UNOPTIMIZED_ELF
@@ -408,13 +405,23 @@ fn main() {
         ZK_MATRIX_GUEST_ELF
     };
 
-    let pk_path = "res/pk.bin";
-    let pk = if std::path::Path::new(pk_path).exists() && !is_unoptimized {
-        println!("> Loading pre-compiled Proving Key from {}...", pk_path);
-        let pk_bytes = std::fs::read(pk_path).expect("Failed to read pk.bin");
+    let dim = option_env!("SP1_TOPOLOGY_DIM").unwrap_or("10");
+    let pk_path = format!("res/pk_{}.bin", dim);
+
+    let pk = if std::path::Path::new(&pk_path).exists() && !is_unoptimized {
+        println!(
+            "> Loading pre-compiled {}-bit Proving Key from {}...",
+            dim, pk_path
+        );
+        let pk_bytes = std::fs::read(&pk_path).expect("Failed to read pk.bin");
         bincode::deserialize(&pk_bytes).expect("Failed to deserialize Proving Key")
     } else {
-        println!("> Building new circuit constraints (one-time setup)...");
+        println!("> Initializing SP1 Prover for one-time circuit compilation...");
+        let prover_client = ProverClient::from_env();
+        println!(
+            "> Building new {}-bit circuit constraints (this takes 15-30 mins on CPU)...",
+            dim
+        );
         prover_client
             .setup(sp1_sdk::Elf::Static(target_elf))
             .unwrap()
@@ -456,6 +463,7 @@ fn main() {
     }
 
     if std::env::var("SP1_PROVE").is_ok() {
+        let prover_client = ProverClient::from_env();
         println!("Generating STARK Proof for Matrix State Resolution...");
 
         let prove_mode = std::env::var("SP1_PROVE_MODE").unwrap_or_default();
@@ -499,9 +507,11 @@ fn main() {
             .expect("Failed to save proof file");
     } else {
         println!("Simulating Verifiable Execution for Matrix State Resolution...");
-        println!("(Note: This is a full RISC-V simulation of the Ruma algorithm)");
+        println!("(Note: This is a fast RISC-V instruction count simulation)");
 
-        let (mut public_values, execution_report) = prover_client
+        let (mut public_values, execution_report) = ProverClient::builder()
+            .mock()
+            .build()
             .execute(sp1_sdk::Elf::Static(target_elf), stdin)
             .run()
             .expect("SP1 Execution failed!");
@@ -722,18 +732,18 @@ mod tests {
 
         let mut edges: Vec<(u32, u32)> = Vec::new();
         const DIMS: usize = match option_env!("SP1_TOPOLOGY_DIM") {
-        Some(s) => {
-            let mut val = 0;
-            let bytes = s.as_bytes();
-            let mut i = 0;
-            while i < bytes.len() {
-                val = val * 10 + (bytes[i] - b'0') as usize;
-                i += 1;
+            Some(s) => {
+                let mut val = 0;
+                let bytes = s.as_bytes();
+                let mut i = 0;
+                while i < bytes.len() {
+                    val = val * 10 + (bytes[i] - b'0') as usize;
+                    i += 1;
+                }
+                val
             }
-            val
-        }
-        None => 10,
-    };
+            None => 10,
+        };
 
         fn event_to_coordinate(s: &str) -> u32 {
             let mut h = sha2::Sha256::new();

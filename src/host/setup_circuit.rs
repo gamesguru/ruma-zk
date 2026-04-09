@@ -30,9 +30,12 @@ fn main() {
         .setup(sp1_sdk::Elf::Static(ZK_MATRIX_GUEST_ELF))
         .unwrap();
 
-    println!("> Serializing and saving Proving Key to res/pk.bin...");
+    let dim = option_env!("SP1_TOPOLOGY_DIM").unwrap_or("10");
+    let pk_filename = format!("res/pk_{}.bin", dim);
+
+    println!("> Serializing and saving Proving Key to {}...", pk_filename);
     let pk_bytes = bincode::serialize(&pk).expect("Failed to serialize PK");
-    std::fs::write("res/pk.bin", pk_bytes).expect("Failed to write res/pk.bin");
+    std::fs::write(&pk_filename, pk_bytes).expect("Failed to write PK bin");
 
     println!("✓ Setup Complete!");
     println!("✓ Verifying Key Hash: {}", pk.verifying_key().bytes32());
