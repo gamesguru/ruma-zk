@@ -58,6 +58,16 @@ verify: ##H Verify an existing Jolt STARK Proof
 	@echo "Verifying Jolt STARK Proof..."
 	$(CARGO) run --release --bin ruma-zk -- verify
 
+.PHONY: publish
+publish: ##H Preview package file list and simulate a dry-run publish for ruma-zk
+	@echo "Previewing packaged files for ruma-zk..."
+	@echo "-----------------------------------"
+	cd ruma-zk && $(CARGO) package --list --allow-dirty
+	@echo ""
+	@echo "Simulating publish for ruma-zk (--dry-run)"
+	@echo "-----------------------------------"
+	cd ruma-zk && $(CARGO) publish --dry-run --allow-dirty
+
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
 	@echo "Compiling WASM bindings..."
