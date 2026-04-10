@@ -581,7 +581,7 @@ fn main() {
             println!("Generating Jolt Proof for Matrix State Resolution...");
             if unoptimized {
                 println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-                let mut cp = Program::new("demo-unoptimized-guest");
+                let mut cp = Program::new("ruma-zk-guest-unoptimized");
                 let sp =
                     preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_resolve_full_spec(sp);
@@ -628,7 +628,7 @@ fn main() {
                     .expect("Failed to save proof");
             } else {
                 println!("> Mode: OPTIMIZED (Topological Reducer)");
-                let mut cp = Program::new("ruma-zk/guest");
+                let mut cp = Program::new("ruma-zk-guest");
                 let sp =
                     preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_verify_topology(sp);
@@ -662,7 +662,15 @@ fn main() {
             use jolt_sdk::{RV64IMACProof, Serializable};
 
             println!("> Loading proof from {}...", proof_path);
-            let _proof = RV64IMACProof::from_file(&proof_path).expect("Failed to load proof");
+            if !std::path::Path::new(&proof_path).exists() {
+                eprintln!("Error: Proof file '{}' not found.", proof_path);
+                eprintln!("Please run the 'prove' command first to generate a proof.");
+                std::process::exit(1);
+            }
+            let _proof = RV64IMACProof::from_file(&proof_path).unwrap_or_else(|e| {
+                eprintln!("Error: Failed to load proof from '{}': {}", proof_path, e);
+                std::process::exit(1);
+            });
 
             // For now, we simulate providing the output parameters, as in Jolt, the host usually
             // verifies by running the verifier closure with the inputs/outputs.
@@ -670,7 +678,7 @@ fn main() {
             println!("> Setting up Jolt verifier environment...");
 
             if unoptimized {
-                let mut cp = Program::new("demo-unoptimized-guest");
+                let mut cp = Program::new("ruma-zk-guest-unoptimized");
                 let sp =
                     preprocess_shared_resolve_full_spec(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_resolve_full_spec(sp);
@@ -686,7 +694,7 @@ fn main() {
                 let _ = verify_fn;
                 println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
             } else {
-                let mut cp = Program::new("ruma-zk/guest");
+                let mut cp = Program::new("ruma-zk-guest");
                 let sp =
                     preprocess_shared_verify_topology(&mut cp).expect("shared preprocess failed");
                 let pp = preprocess_prover_verify_topology(sp);

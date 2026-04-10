@@ -56,63 +56,40 @@ graph TD
 
 Built on **Jolt RV64IMAC**, allowing formally verified Rust libraries (`ruma-lean`) to run in ZK.
 
-- **`src/host/` (The Prover):** Orchestrates state res and parallelizes the Jolt Prover.
-- **`src/guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
-- **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly (Currently in Simulation mode).
+- **`ruma-zk/` (The Prover):** Orchestrates state res and parallelizes the Jolt Prover.
+- **`ruma-zk/guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
+- **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly.
 
-## API Specification
+## CLI Usage
 
-We propose new endpoints to securely retrieve these ZK rollups.
-
-### 1. Server-to-Server (Federation API)
-
-When a Matrix homeserver joins a room, it requests the proof from a resident server.
-
-**Request:**
-
-```http
-GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/!room:example.com
-Authorization: X-Matrix origin="joining.server",key="...",sig="..."
-```
-
-### 2. Client-to-Server (Client-Server API)
-
-The homeserver generously passes this exact proof down to end-user clients (Element, etc.) so they can perform edge-verification.
-
-**Example Response:**
-
-```json
-{
-  "room_version": "12",
-  "checkpoint": {
-    "event_id": "$historic_cutoff",
-    "resolved_state_root_hash": "<sha256_hash>",
-    "zk_proof": "<jolt_stark_proof>",
-    "program_vkey": "<jolt_vkey>"
-  },
-  "delta": {
-    "recent_state_events": [ ... ]
-  }
-}
-```
-
-## Project Architecture
-
-- [Architectural Paths](docs/architectural-paths.md): High-level overview of our Jolt-centric ZK strategy.
-- [Topological Reducer Speedup](docs/topological-reducer-speedup.md): How Jolt's lookup table approach optimizes Matrix DAG resolution.
-
-## Configuration
-
-You can configure the execution mode using environment variables:
-
-- `JOLT_PROVE=1`: Generates a full STARK proof (High CPU/RAM).
-- `EXECUTE_UNOPTIMIZED=1`: Runs the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
-
-Example usage:
+The primary interface is the `ruma-zk` binary.
 
 ```bash
-JOLT_PROVE=1 cargo run --bin ruma-zk-host
+cargo run --release --bin ruma-zk -- [COMMAND]
 ```
+
+### Commands:
+
+- **`demo`**: Run a fast end-to-end simulation.
+  ```bash
+  ruma-zk demo -i res/benchmark_1k.json
+  ```
+- **`prove`**: Generate a full cryptographic proof.
+  ```bash
+  ruma-zk prove -i res/benchmark_1k.json --compression groth16
+  ```
+- **`verify`**: Verify an existing STARK/SNARK proof.
+  ```bash
+  ruma-zk verify --proof-path proof.bin
+  ```
+
+### Options:
+
+- `-i, --input <PATH>`: Path to the Matrix state JSON fixture.
+- `-l, --limit <N>`: Limit the number of events processed (default: 1000, max: 2^24).
+- `-u, --unoptimized`: Run the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
+- `-c, --compression <LEVEL>`: Proof compression (uncompressed, intermediate, groth16).
+- `--trace`: Enable cycle-accurate trace analysis during simulation (Warning: High CPU/RAM).
 
 ## Security & Memory Safety
 
