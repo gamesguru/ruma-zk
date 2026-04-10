@@ -169,4 +169,4 @@ clean: ##H Clean up cache and optionally build artifacts
 .PHONY: help
 help: ##H Show this help, list available targets
 	@grep -hE '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
-		        | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%%-20s$(STYLE_RESET) %%s\n", $$1, $$2}'
+		        | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%-20s$(STYLE_RESET) %s\n", $$1, $$2}'

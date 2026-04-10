@@ -514,13 +514,8 @@ fn main() {
                     let sp = preprocess_shared_verify_topology(&mut cp)
                         .expect("shared preprocess failed");
                     let pp = preprocess_prover_verify_topology(sp);
-                    let (output, proof, _io_device) = prove_verify_topology(
-                        &mut cp,
-                        pp,
-                        edges,
-                        expected_hash,
-                        events.len() as u32,
-                    );
+                    let (output, proof, _io_device) =
+                        prove_verify_topology(&cp, pp, edges, expected_hash, events.len() as u32);
                     println!("✓ Jolt Proof Generated Successfully!");
                     println!(
                         "Matrix Resolved State Hash (Journal): {:?}",
