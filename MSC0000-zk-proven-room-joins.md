@@ -1,4 +1,4 @@
-# MSC0000: Trustless ZK-SNARK Federated Room Joins via a16z/jolt
+# MSC0000: Trustless ZK-zkVM Federated Room Joins via a16z/jolt
 
 **Author:** [@gamesguru]
 **Created:** [Sun 23 Mar 2026]
@@ -58,9 +58,9 @@ Returns an HTTP 200 OK with the following JSON body:
 
 - `room_version` (string): The Matrix room version, which dictates the state resolution rules and allowed SP1 Guest ELF.
 - `checkpoint` (object): The cryptographic rollup data spanning the room's history up to the cutoff.
-  - `event_id` (string): The Matrix event ID representing the deterministic cutoff point for the SNARK rollup.
+  - `event_id` (string): The Matrix event ID representing the deterministic cutoff point for the zkVM rollup.
   - `resolved_state_root_hash` (string): The resulting Matrix state resolution output hash computed by the ZK program.
-  - `zk_proof` (string): The base64-encoded, serialized Groth16 or Plonk SNARK receipt.
+  - `zk_proof` (string): The base64-encoded, serialized Groth16 or Plonk zkVM receipt.
   - `image_id` (string): The canonical program hash (SP1 verification key hash) utilized to generate the proof. This MUST strictly adhere to the expected hash for this `room_version`.
 - `delta` (object): The minimal, unverified Auth Chain events that have accumulated strictly after the `checkpoint.event_id`.
   - `recent_state_events` (array of objects): Standard Matrix state events (PDUs). The joining server will natively execute standard state resolution over these final events on top of the checkpoint.
@@ -82,16 +82,16 @@ sequenceDiagram
     participant J as Joining Homeserver
     participant R as Resident Homeserver
 
-    Note over R: Resident host periodically computes asynchronous Checkpoint SNARKs spanning large historic state epochs.
+    Note over R: Resident host periodically computes asynchronous Checkpoint zkVMs spanning large historic state epochs.
 
     C->>J: Request to join room
     activate J
     J->>R: GET /zk_state_proof
     activate R
-    R-->>J: Checkpoint Proof (Journal + SNARK) + Minimal Event Delta
+    R-->>J: Checkpoint Proof (Journal + zkVM) + Minimal Event Delta
     deactivate R
 
-    Note over J: 1. Verifies SNARK Checkpoint mathematically in ~10ms.
+    Note over J: 1. Verifies zkVM Checkpoint mathematically in ~10ms.
     Note over J: 2. Executes standard State Res (v2) only on the tiny unproven Event Delta.
 
     J-->>C: 200 OK (Room fully and trustlessly joined!)
@@ -99,7 +99,7 @@ sequenceDiagram
 
     Note over C: SP1 Light-Client Edge Verification
     C->>R: Matrix Client directly requests Proof
-    R-->>C: Checkpoint Proof (Journal + SNARK)
+    R-->>C: Checkpoint Proof (Journal + zkVM)
     Note over C: Embedded WASM Verifier mathematically guarantees Homeserver is not lying about the room state.
 ```
 
@@ -108,7 +108,7 @@ sequenceDiagram
 If a joining server receives a zero-knowledge proof, it must know exactly which circuit program verified the logic. Otherwise, a malicious host could write a circuit that simply returns `true` and bypasses power levels.
 
 **Rule:** Matrix Room Versions MUST dictate the allowed zkVM program.
-_When joining Room Version 12 via ZK-Proof, the receiving server MUST assert that the SNARK receipt's `image_id` perfectly matches the protocol-defined canonical Hash of the official SP1 Guest ELF for Room Version 12._
+_When joining Room Version 12 via ZK-Proof, the receiving server MUST assert that the zkVM receipt's `image_id` perfectly matches the protocol-defined canonical Hash of the official SP1 Guest ELF for Room Version 12._
 
 ## zkVM Mechanics: Host, Guest, and Receipts
 
@@ -118,7 +118,7 @@ A common source of skepticism around zero-knowledge proofs is: _"How do we know 
 - **The Journal & Public Outputs:** During execution, the Guest reads the unverified Matrix Events. Once it finishes state resolution, it "commits" public variables to a structure known as the **Journal**. In this protocol, the Journal strictly contains:
   1. The Starting Room State Hash (Input State)
   2. The Final Resolved Room State Hash (Output State)
-- **The Receipt:** The STARK/SNARK prover finishes and generates a **Receipt**. The Receipt bundles the Journal, the `image_id` (program hash), and the cryptographic proof. Any verifier can examine the Receipt and confidently assert: _"I see this proof guarantees that running the program `[image_id]` on starting state `[A]` deterministically yields end state `[B]`."_ The verifier never downloads the thousands of events between A and B, but cryptographic binding forces the receipt to be mathematically invalid if the Host tampered with the event logic or skipped constraints.
+- **The Receipt:** The STARK/zkVM prover finishes and generates a **Receipt**. The Receipt bundles the Journal, the `image_id` (program hash), and the cryptographic proof. Any verifier can examine the Receipt and confidently assert: _"I see this proof guarantees that running the program `[image_id]` on starting state `[A]` deterministically yields end state `[B]`."_ The verifier never downloads the thousands of events between A and B, but cryptographic binding forces the receipt to be mathematically invalid if the Host tampered with the event logic or skipped constraints.
 
 ## Epoch Rollups and Determinism
 
@@ -128,19 +128,19 @@ To prevent unacceptable CPU load, homeservers MUST NOT generate ZK proofs synchr
 A Rollup takes a historically established Room State (e.g., from exactly two weeks ago) as its genesis input. It then processes the entire DAG delta up to the current cutoff point, enforcing Matrix auth rules and resolving conflicts. The output is a new resolved state hash, representing the new checkpoint.
 
 **Determinism:**
-Matrix State Resolution (v2) is strictly deterministic. If three different homeservers independently generate a rollup for the exact same two-week window of events, they will all compute the exact same final `resolved_state_root_hash`. While the underlying SNARK proof's binary payload might differ due to cryptographic randomness, anyone verifying those receipts will accept the exact same Output State.
+Matrix State Resolution (v2) is strictly deterministic. If three different homeservers independently generate a rollup for the exact same two-week window of events, they will all compute the exact same final `resolved_state_root_hash`. While the underlying zkVM proof's binary payload might differ due to cryptographic randomness, anyone verifying those receipts will accept the exact same Output State.
 
 When serving a `/zk_state_proof` request, the resident server returns the most recent Checkpoint Proof alongside the minimal, unproven Auth Chain delta that has accumulated since that checkpoint. The joining server cryptographically verifies the Checkpoint in `O(1)` time, and natively resolves the tiny unproven event delta in trivial `O(N)` time. This "Hybrid Verification" guarantees 100% trustless state while allowing heavy proof generation to happen entirely asynchronously offline.
 
 ## The Light Client Angle
 
-A crucial secondary benefit of migrating complex state resolution to a SNARK proof is that verifiers are extremely lightweight. The SP1 Growth16 verifier (`ark-bn254` based) is compiled entirely to WebAssembly (WASM).
+A crucial secondary benefit of migrating complex state resolution to a zkVM proof is that verifiers are extremely lightweight. The SP1 Growth16 verifier (`ark-bn254` based) is compiled entirely to WebAssembly (WASM).
 
 This allows clients like **Element Web** or mobile browsers to verify the state of a room _trustlessly_ in 10-15 milliseconds. A client no longer has to trust that its connected Homeserver isn't lying about the room state—it can verify the ZK-Proof directly on the edge device, shifting Matrix closer to a true peer-to-peer paradigm.
 
 ## Security Considerations
 
-- **Malicious Circuits:** If the joining server does not enforce a strict manifest correlating the room version to a specific, audited verifier image ID (ELF hash), a malicious homeserver could provide a fake SNARK proof generated from a dummy program that simply returns `true`. The protocol MUST specify canonical image IDs per room version.
+- **Malicious Circuits:** If the joining server does not enforce a strict manifest correlating the room version to a specific, audited verifier image ID (ELF hash), a malicious homeserver could provide a fake zkVM proof generated from a dummy program that simply returns `true`. The protocol MUST specify canonical image IDs per room version.
 - **Data Availability:** While the ZK proof asserts that a valid state resolution occurred, it does not guarantee that the events referenced in the state actually exist or are available for download. A malicious server could withhold the underlying data (a Data Availability attack).
 - **Power Level Bypassing:** The circuit constraints MUST be thoroughly audited strictly against Matrix's `m.room.power_levels` rules. If a vulnerability exists in the guest program, a malicious sender could forge a valid proof that illegitimately elevates their permissions.
 

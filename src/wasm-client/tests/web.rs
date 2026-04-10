@@ -31,7 +31,7 @@ fn test_groth16_verification() {
 
     // Parse the binary Payload emitted by SP1
     let payload: SP1ProofWithPublicValuesMock = bincode::deserialize(proof_bytes_with_io)
-        .expect("Failed to deserialize STARK/SNARK binary proof emitted by Host");
+        .expect("Failed to deserialize STARK/zkVM binary proof emitted by Host");
 
     let groth16_wrapper = payload.proof.groth16.expect(
         "The emitted proof was a Core STARK. Did you forget to set SP1_GROTH16=true in the runner?",
