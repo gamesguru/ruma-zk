@@ -133,8 +133,10 @@ format: ##H Format the Rust and Python codebase
 lint: ##H Run clippy to lint the codebase and check compilation
 	$(CARGO) check
 	$(CARGO) clippy --all-targets --all-features -- -D warnings
-	@echo "Running ZK Security Scanner (vuln-002-VeilCash)..."
-	python3 scripts/detect_vuln_002.py
+	@if [ -n "$(VERBOSE)" ]; then \
+		echo "Running ZK Security Scanner (vuln-002-VeilCash)..."; \
+		python3 scripts/detect_vuln_002.py; \
+	fi
 
 .PHONY: coverage
 coverage: ##H Run workspace code coverage and generate HTML report
