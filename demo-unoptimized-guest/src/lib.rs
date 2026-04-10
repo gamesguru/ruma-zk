@@ -12,16 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(feature = "guest", no_std)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
+
+#[cfg(feature = "guest")]
+extern crate alloc;
+
+#[cfg(feature = "guest")]
+use alloc::{collections::BTreeMap, string::{String, ToString}, vec::Vec};
+#[cfg(not(feature = "guest"))]
+use std::{collections::BTreeMap, string::{String, ToString}, vec::Vec};
 
 use jolt::provable;
 use ruma_lean::{lean_kahn_sort, HashMap, LeanEvent, StateResVersion};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::collections::BTreeMap;
-use std::string::ToString;
-use std::vec::Vec;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct GuestEvent {

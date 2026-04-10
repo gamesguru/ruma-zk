@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg_attr(feature = "guest", no_std)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
+#[cfg(feature = "guest")]
+extern crate alloc;
+
+#[cfg(feature = "guest")]
+use alloc::vec::Vec;
+#[cfg(not(feature = "guest"))]
+use std::vec::Vec;
+
 use jolt::provable;
 use serde::{Deserialize, Serialize};
-use std::vec::Vec;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DAGMergeOutput {
