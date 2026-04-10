@@ -125,7 +125,7 @@ cargo run --release --bin ruma-zk -- [COMMAND]
 
 ### Options:
 
-- `-i, --input <PATH>`: Path to the Matrix state JSON fixture. Use `-` to read from stdin.
+- `-i, --input <PATH>`: Path to the Matrix state JSON fixture. Read from STDIN if omitted.
 - `-l, --limit <N>`: Limit the number of events processed (default: 1000, max: 2^24).
 - `-u, --unoptimized`: Run the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
 - `-c, --compression <LEVEL>`: Proof compression (uncompressed, intermediate, groth16).

@@ -1,23 +1,14 @@
 SHELL=/bin/bash
+.DEFAULT_GOAL := help
 
-# --- Variables ---
-CARGO = cargo
-PYTHON = python3
+CARGO ?= cargo
+PYTHON ?= python3
 
 # Load environment variables from .env file if it exists
 ifneq (,$(wildcard ./.env))
     include .env
 endif
 
-# Clean quotes from variables
-MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
-MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
-MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
-
-export RUST_BACKTRACE ?= 1
-export
-
-.DEFAULT_GOAL := help
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -118,7 +109,7 @@ wasm: ##H Build the WebAssembly light-client Verifier
 	cd ruma-zk-wasm && wasm-pack build --target web
 
 .PHONY: web-demo
-web-demo: wasm ##H Run local web server to test WASM UI (Depends on wasm)
+web-demo: ##H Run local web server to test WASM UI
 	@echo "================================================================"
 	@echo " ZK-Matrix WebAssembly Server is starting!"
 	@echo " http://localhost:8080/demo/index.html"
@@ -161,7 +152,26 @@ cpu-info: ##H Print hardware info relevant to native targets
 # Help
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+STYLE_CYAN := \033[36m
+STYLE_RESET := \033[0m
+
 .PHONY: help
 help: ##H Show this help, list available targets
-	@grep -hE '^[a-zA-Z0-9_\/-]+:.*?##H .*$$' $(MAKEFILE_LIST) \
-		        | awk 'BEGIN {FS = ":.*?##H "}; {printf "$(STYLE_CYAN)%-20s$(STYLE_RESET) %s\n", $$1, $$2}'
+	@echo -e "Usage: make [target]\n"
+	@awk 'BEGIN {FS = ":.*?##H "; printf "Available targets:\n"} \
+		/^# ~~~/ { getline; if ($$0 ~ /^# /) printf "\n\033[1;33m%s\033[0m\n", substr($$0, 3); next } \
+		/^[a-zA-Z0-9_\/-]+:.*?##H / { \
+			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
+		}' $(MAKEFILE_LIST)
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Environment & Extras
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# Clean quotes from variables
+MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
+MATRIX_HOMESERVER := $(subst ",,$(subst ',,$(MATRIX_HOMESERVER)))
+MATRIX_ROOM_ID := $(subst ",,$(subst ',,$(MATRIX_ROOM_ID)))
+
+export RUST_BACKTRACE ?= 1
+export
