@@ -83,10 +83,24 @@ pub fn resolve_full_spec(_input_bytes: Vec<u8>) -> DAGMergeOutput {
     for (id, guest_ev) in &input.event_map {
         let lean_ev = LeanEvent {
             event_id: id.clone(),
-            power_level: 0,
+            sender: guest_ev.sender.clone(),
             origin_server_ts: guest_ev.origin_server_ts(),
+            auth_events: guest_ev.auth_events.clone(),
             prev_events: guest_ev.prev_events.clone(),
-            depth: 0,
+            event_type: guest_ev.event_type.clone(),
+            state_key: guest_ev
+                .event
+                .get("state_key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            content: serde_json::from_slice(&guest_ev.content).unwrap_or(serde_json::Value::Null),
+            depth: guest_ev
+                .event
+                .get("depth")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            power_level: 0,
         };
         conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
     }

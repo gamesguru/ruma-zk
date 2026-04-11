@@ -15,9 +15,10 @@
 #![forbid(unsafe_code)]
 
 use clap::Parser;
+use hashbrown::HashMap;
 use jolt_sdk::host::Program;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub type StateMap<K> = BTreeMap<(String, String), K>;
 
@@ -380,14 +381,28 @@ fn prepare_execution(input: Option<String>, limit: usize) -> ExecutionData {
 
     println!("> Resolving state natively on host (Path A)...");
 
-    let mut conflicted_events = HashMap::new();
+    let mut conflicted_events = ruma_lean::HashMap::new();
     for guest_ev in &events {
         let lean_ev = LeanEvent {
             event_id: guest_ev.event_id.clone(),
-            power_level: 0, // Simplified for demo
+            sender: guest_ev.sender.clone(),
             origin_server_ts: guest_ev.origin_server_ts(),
+            auth_events: guest_ev.auth_events.clone(),
             prev_events: guest_ev.prev_events.clone(),
-            depth: 0, // Simplified for demo
+            event_type: guest_ev.event_type.clone(),
+            state_key: guest_ev
+                .event
+                .get("state_key")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string(),
+            content: guest_ev.content.clone(),
+            depth: guest_ev
+                .event
+                .get("depth")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0),
+            power_level: 0, // Simplified for demo
         };
         conflicted_events.insert(lean_ev.event_id.clone(), lean_ev);
     }

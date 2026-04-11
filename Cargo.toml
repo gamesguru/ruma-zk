@@ -13,28 +13,27 @@ path = "main.rs"
 
 [dependencies]
 jolt-sdk = { version = "0.1.0", git = "https://github.com/a16z/jolt.git", features = ["host"] }
-clap = { version = "4.4", features = ["derive"] }
 ruma_zk_guest = { version = "0.1.0", path = "./ruma_zk_guest", features = ["host"] }
 ruma_zk_guest_unoptimized = { version = "0.1.0", path = "./demo_unoptimized_guest", features = ["host"] }
-serde = { version = "=1.0.210", features = ["derive"] }
-serde_json = "=1.0.120"
+serde = { version = "=1.0.210", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "=1.0.120", default-features = false, features = ["alloc"] }
 sha2 = "0.10.8"
-hex = "0.4"
+hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
 ciborium = "0.2.2"
 bincode = "1.3"
-ruma-lean = "0.1.0"
+hashbrown = { version = "=0.14.5", default-features = false, features = ["ahash", "inline-more", "serde"] }
+ruma-lean = { path = "../ruma-lean", features = ["cli"] }
 rayon = "1.8"
 ed25519-consensus = "2.1"
+clap = { version = "4.4", features = ["derive"] }
 reqwest = { version = "0.11", features = ["blocking", "json"] }
-base64 = "0.21"
+base64 = { version = "=0.21.7", default-features = false }
 
 [workspace]
 resolver = "2"
 members = ["ruma_zk_guest", "demo_unoptimized_guest", "ruma-zk-wasm"]
 
 [patch.crates-io]
-hex = { git = "https://github.com/KokaKiwi/rust-hex", branch = "main" }
-base64 = { git = "https://github.com/marshallpierce/rust-base64", tag = "v0.21.7" }
 ark-ff = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
 ark-ec = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
 ark-poly = { git = "https://github.com/a16z/arkworks-algebra", branch = "dev/twist-shout" }
