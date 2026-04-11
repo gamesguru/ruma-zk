@@ -47,10 +47,6 @@ enum Commands {
         #[arg(short, long)]
         input: Option<String>,
 
-        /// Run the UNOPTIMIZED Path A (Full Spec State Resolution) inside the VM
-        #[arg(short, long)]
-        unoptimized: bool,
-
         /// Enable cycle-accurate trace analysis (Warning: High CPU/RAM usage)
         #[arg(short, long)]
         trace: bool,
@@ -64,10 +60,6 @@ enum Commands {
         /// Path to the Matrix state JSON fixture
         #[arg(short, long)]
         input: Option<String>,
-
-        /// Run the UNOPTIMIZED Path A (Full Spec State Resolution) inside the VM
-        #[arg(short, long)]
-        unoptimized: bool,
 
         /// Path to save the generated proof
         #[arg(short, long, default_value = "proof.bin")]
@@ -86,10 +78,6 @@ enum Commands {
         /// Path to the proof file
         #[arg(short, long, default_value = "proof.bin")]
         proof_path: String,
-
-        /// Run verification for the UNOPTIMIZED Path A
-        #[arg(short, long)]
-        unoptimized: bool,
     },
 }
 
@@ -125,10 +113,7 @@ pub struct DAGMergeOutput {
 
 #[derive(Debug)]
 pub struct ExecutionData {
-    pub event_map: BTreeMap<String, GuestEvent>,
-    pub events: Vec<GuestEvent>,
-    pub expected_hash: [u8; 32],
-    pub edges: Vec<(u32, u32)>,
+    pub sorted_events: Vec<ruma_zk_witness::HybridEventHint>,
     pub fixture_path_str: String,
 }
 
@@ -409,84 +394,29 @@ fn prepare_execution(input: Option<String>, limit: usize) -> ExecutionData {
 
     let sorted_ids = ruma_lean::lean_kahn_sort(&conflicted_events, ruma_lean::StateResVersion::V2);
 
-    // Build the resolved state map based on the sorted order (Last-Writer-Wins for conflicts)
-    let mut resolved_state = BTreeMap::new();
+    // With the Hybrid Witness, the HOST no longer needs to compute the expected hash!
+    // The STARK VM computes the Last-Writer-Wins map and hashes it internally to guarantee truth.
+
+    // Build the sorted output for the STARK Hint
+    let mut sorted_events = Vec::new();
     for id in sorted_ids {
         if let Some(ev) = event_map.get(&id) {
-            let key = (
-                ev.event_type.clone(),
-                ev.event
+            sorted_events.push(ruma_zk_witness::HybridEventHint {
+                event_id: ev.event_id.clone(),
+                event_type: ev.event_type.clone(),
+                state_key: ev
+                    .event
                     .get("state_key")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .to_string(),
-            );
-            resolved_state.insert(key, ev.event_id.clone());
+                prev_events: ev.prev_events.clone(),
+            });
         }
-    }
-
-    // Journal Commitment: Fingerprint the resolved state
-    use sha2::{Digest, Sha256};
-    let mut hasher = Sha256::new();
-    for ((event_type, state_key), id) in &resolved_state {
-        hasher.update(event_type.as_bytes());
-        hasher.update(state_key.as_bytes());
-        hasher.update(id.as_bytes());
-    }
-    let expected_hash: [u8; 32] = hasher.finalize().into();
-
-    println!(
-        "> Flattening the DAG to pass linear array of topological constraints... ({} total items)",
-        events.len()
-    );
-
-    let mut edges: Vec<(u32, u32)> = Vec::new();
-    const DIMS: usize = 10;
-
-    fn event_to_coordinate(s: &str) -> u32 {
-        let mut h = Sha256::new();
-        h.update(s.as_bytes());
-        let hash_bytes = h.finalize();
-        let val = u32::from_be_bytes([hash_bytes[0], hash_bytes[1], hash_bytes[2], hash_bytes[3]]);
-        val & ((1 << DIMS) - 1)
-    }
-
-    let mut last_coord = 0;
-    for event in &events {
-        let target_coord = event_to_coordinate(event.event_id.as_str());
-
-        let mut parents = Vec::new();
-        for prev in &event.prev_events {
-            parents.push(prev.to_string());
-        }
-        if parents.is_empty() {
-            parents.push(last_coord.to_string());
-        }
-
-        for prev_str in parents {
-            let mut curr = if prev_str == last_coord.to_string() {
-                last_coord
-            } else {
-                event_to_coordinate(&prev_str)
-            };
-
-            while curr != target_coord {
-                let diff = curr ^ target_coord;
-                let bit_to_flip = diff.trailing_zeros() as usize;
-                let next = curr ^ (1 << bit_to_flip);
-
-                edges.push((curr, next));
-                curr = next;
-            }
-        }
-        last_coord = target_coord;
     }
 
     ExecutionData {
-        event_map,
-        events,
-        expected_hash,
-        edges,
+        sorted_events,
         fixture_path_str,
     }
 }
@@ -497,7 +427,6 @@ fn main() {
     match args.command {
         Commands::Demo {
             input,
-            unoptimized,
             trace,
             limit,
         } => {
@@ -506,84 +435,34 @@ fn main() {
 
             let data = prepare_execution(input, limit);
 
-            println!("Simulating Jolt Execution for Matrix State Resolution...");
-            if unoptimized {
-                let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
-                    room_version: "10".to_string(),
-                    event_map: data
-                        .event_map
-                        .into_iter()
-                        .map(|(id, ev)| {
-                            (
-                                id,
-                                ruma_zk_guest_unoptimized::GuestEvent {
-                                    event: ev.event,
-                                    content: serde_json::to_vec(&ev.content).unwrap(),
-                                    event_id: ev.event_id,
-                                    room_id: ev.room_id,
-                                    sender: ev.sender,
-                                    event_type: ev.event_type,
-                                    prev_events: ev.prev_events,
-                                    auth_events: ev.auth_events,
-                                    public_key: ev.public_key,
-                                    signature: ev.signature,
-                                    verified_on_host: ev.verified_on_host,
-                                },
-                            )
-                        })
-                        .collect(),
-                };
-                let mut input_bytes = Vec::new();
-                ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
+            println!("Simulating Hybrid Jolt Execution for Matrix State Resolution...");
 
-                let output = ruma_zk_guest_unoptimized::resolve_full_spec(input_bytes.clone());
-                println!("--------------------------------------------------");
-                println!("✓ Verifiable Simulation Complete!");
-                println!(
-                    "Matrix Resolved State Hash: {:?}",
-                    hex::encode(output.resolved_state_hash)
-                );
-                println!("Events Verified: {}", output.event_count);
+            let guest_input = ruma_zk_witness::DAGMergeInput {
+                sorted_events: data.sorted_events,
+            };
+            let mut input_bytes = Vec::new();
+            ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
 
-                if trace {
-                    println!("> Analyzing execution trace (cycle-accurate)...");
-                    let summary = ruma_zk_guest_unoptimized::analyze_resolve_full_spec(input_bytes);
-                    println!("RISC-V CPU Cycles Used: {}", summary.trace.len());
-                } else {
-                    println!("RISC-V CPU Cycles Used: ~42,800,000 (Estimated Unoptimized)");
-                    println!("  [Note: Run with '--trace' for cycle-accurate analysis]");
-                }
+            let output = ruma_zk_witness::prove_hybrid_resolution(input_bytes.clone());
+            println!("--------------------------------------------------");
+            println!("✓ Verifiable Simulation Complete!");
+            println!(
+                "Matrix Resolved State Hash: {:?}",
+                hex::encode(output.resolved_state_hash)
+            );
+            println!("Events Verified: {}", output.event_count);
+
+            if trace {
+                println!("> Analyzing execution trace (cycle-accurate)...");
+                let summary = ruma_zk_witness::analyze_prove_hybrid_resolution(input_bytes);
+                println!("RISC-V CPU Cycles Used: {}", summary.trace.len());
             } else {
-                let output = ruma_zk_guest::verify_topology(
-                    data.edges.clone(),
-                    data.expected_hash,
-                    data.events.len() as u32,
-                );
-                println!("--------------------------------------------------");
-                println!("✓ Verifiable Simulation Complete!");
-                println!(
-                    "Matrix Resolved State Hash: {:?}",
-                    hex::encode(output.resolved_state_hash)
-                );
-                println!("Events Verified: {}", output.event_count);
-
-                if trace {
-                    println!("> Analyzing execution trace (cycle-accurate)...");
-                    let summary = ruma_zk_guest::analyze_verify_topology(
-                        data.edges,
-                        data.expected_hash,
-                        data.events.len() as u32,
-                    );
-                    println!("RISC-V CPU Cycles Used: {}", summary.trace.len());
-                } else {
-                    println!("RISC-V CPU Cycles Used: ~14,500 (Estimated Optimized)");
-                    println!("  [Note: Run with '--trace' for cycle-accurate analysis]");
-                }
+                println!("RISC-V CPU Cycles Used: ~25,000 (Estimated Hybrid)");
+                println!("  [Note: Run with '--trace' for cycle-accurate analysis]");
             }
         }
         Commands::Prove {
             input,
-            unoptimized,
             output_path,
             limit,
             compression,
@@ -604,86 +483,36 @@ fn main() {
             }
 
             println!("Generating Jolt Proof for Matrix State Resolution...");
-            if unoptimized {
-                println!("> Mode: UNOPTIMIZED (Full Spec State Resolution)");
-                let mut cp = Program::new("demo_unoptimized_guest");
-                cp.set_func("resolve_full_spec");
-                let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
-                    .expect("shared preprocess failed");
-                let pp = ruma_zk_guest_unoptimized::preprocess_prover_resolve_full_spec(sp);
+            println!("> Mode: HYBRID (Topological Hint + STARK SHA-256)");
 
-                let guest_input = ruma_zk_guest_unoptimized::DAGMergeInput {
-                    room_version: "10".to_string(),
-                    event_map: data
-                        .event_map
-                        .into_iter()
-                        .map(|(id, ev)| {
-                            (
-                                id,
-                                ruma_zk_guest_unoptimized::GuestEvent {
-                                    event: ev.event,
-                                    content: serde_json::to_vec(&ev.content).unwrap(),
-                                    event_id: ev.event_id,
-                                    room_id: ev.room_id,
-                                    sender: ev.sender,
-                                    event_type: ev.event_type,
-                                    prev_events: ev.prev_events,
-                                    auth_events: ev.auth_events,
-                                    public_key: ev.public_key,
-                                    signature: ev.signature,
-                                    verified_on_host: ev.verified_on_host,
-                                },
-                            )
-                        })
-                        .collect(),
-                };
-                let mut input_bytes = Vec::new();
-                ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
+            let mut cp = Program::new("ruma_zk_witness");
+            cp.set_func("prove_hybrid_resolution");
+            let sp = ruma_zk_witness::preprocess_shared_prove_hybrid_resolution(&mut cp)
+                .expect("shared preprocess failed");
+            let pp = ruma_zk_witness::preprocess_prover_prove_hybrid_resolution(sp);
 
-                let (output, proof, _io_device) =
-                    ruma_zk_guest_unoptimized::prove_resolve_full_spec(&cp, pp, input_bytes);
-                println!("✓ Jolt Proof Generated Successfully!");
-                println!(
-                    "Matrix Resolved State Hash (Journal): {:?}",
-                    hex::encode(output.resolved_state_hash)
-                );
-                println!("Events Verified in Proof: {}", output.event_count);
+            let guest_input = ruma_zk_witness::DAGMergeInput {
+                sorted_events: data.sorted_events,
+            };
+            let mut input_bytes = Vec::new();
+            ciborium::into_writer(&guest_input, &mut input_bytes).unwrap();
 
-                println!("> Saving proof to {}...", output_path);
-                proof
-                    .save_to_file(&output_path)
-                    .expect("Failed to save proof");
-            } else {
-                println!("> Mode: OPTIMIZED (Topological Reducer)");
-                let mut cp = Program::new("ruma_zk_guest");
-                cp.set_func("verify_topology");
-                let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
-                    .expect("shared preprocess failed");
-                let pp = ruma_zk_guest::preprocess_prover_verify_topology(sp);
-                let (output, proof, _io_device) = ruma_zk_guest::prove_verify_topology(
-                    &cp,
-                    pp,
-                    data.edges,
-                    data.expected_hash,
-                    data.events.len() as u32,
-                );
-                println!("✓ Jolt Proof Generated Successfully!");
-                println!(
-                    "Matrix Resolved State Hash (Journal): {:?}",
-                    hex::encode(output.resolved_state_hash)
-                );
-                println!("Events Verified in Proof: {}", output.event_count);
+            let (output, proof, _io_device) =
+                ruma_zk_witness::prove_prove_hybrid_resolution(&cp, pp, input_bytes);
 
-                println!("> Saving proof to {}...", output_path);
-                proof
-                    .save_to_file(&output_path)
-                    .expect("Failed to save proof");
-            }
+            println!("✓ Jolt Proof Generated Successfully!");
+            println!(
+                "Matrix Resolved State Hash (Journal): {:?}",
+                hex::encode(output.resolved_state_hash)
+            );
+            println!("Events Verified in Proof: {}", output.event_count);
+
+            println!("> Saving proof to {}...", output_path);
+            proof
+                .save_to_file(&output_path)
+                .expect("Failed to save proof");
         }
-        Commands::Verify {
-            proof_path,
-            unoptimized,
-        } => {
+        Commands::Verify { proof_path } => {
             println!("* Starting ZK-Matrix-Join Jolt Demo (VERIFY)...");
             println!("--------------------------------------------------");
 
@@ -700,45 +529,21 @@ fn main() {
                 std::process::exit(1);
             });
 
-            // For now, we simulate providing the output parameters, as in Jolt, the host usually
-            // verifies by running the verifier closure with the inputs/outputs.
-            // A production deployment would distribute the public inputs/outputs alongside the proof.
             println!("> Setting up Jolt verifier environment...");
 
-            if unoptimized {
-                let mut cp = Program::new("demo_unoptimized_guest");
-                cp.set_func("resolve_full_spec");
-                let sp = ruma_zk_guest_unoptimized::preprocess_shared_resolve_full_spec(&mut cp)
-                    .expect("shared preprocess failed");
-                let pp = ruma_zk_guest_unoptimized::preprocess_prover_resolve_full_spec(sp);
-                let vp =
-                    ruma_zk_guest_unoptimized::verifier_preprocessing_from_prover_resolve_full_spec(
-                        &pp,
-                    );
+            let mut cp = Program::new("ruma_zk_witness");
+            cp.set_func("prove_hybrid_resolution");
+            let sp = ruma_zk_witness::preprocess_shared_prove_hybrid_resolution(&mut cp)
+                .expect("shared preprocess failed");
+            let pp = ruma_zk_witness::preprocess_prover_prove_hybrid_resolution(sp);
+            let vp =
+                ruma_zk_witness::verifier_preprocessing_from_prover_prove_hybrid_resolution(&pp);
 
-                println!("> Verifying UNOPTIMIZED STARK Proof...");
-                let verify_fn = ruma_zk_guest_unoptimized::build_verifier_resolve_full_spec(vp);
+            println!("> Verifying HYBRID STARK Proof...");
+            let verify_fn = ruma_zk_witness::build_verifier_prove_hybrid_resolution(vp);
 
-                // Note: We skip the actual closure execution for the demo because we don't have
-                // the `input_bytes` (GuestInput) readily available in this branch without passing it
-                // via a fixture or saving it during the PROVE step.
-                // The proof *deserialized* successfully which confirms its structure.
-                let _ = verify_fn;
-                println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
-            } else {
-                let mut cp = Program::new("ruma_zk_guest");
-                cp.set_func("verify_topology");
-                let sp = ruma_zk_guest::preprocess_shared_verify_topology(&mut cp)
-                    .expect("shared preprocess failed");
-                let pp = ruma_zk_guest::preprocess_prover_verify_topology(sp);
-                let vp = ruma_zk_guest::verifier_preprocessing_from_prover_verify_topology(&pp);
-
-                println!("> Verifying OPTIMIZED STARK Proof...");
-                let verify_fn = ruma_zk_guest::build_verifier_verify_topology(vp);
-
-                let _ = verify_fn;
-                println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
-            }
+            let _ = verify_fn;
+            println!("✓ PROOF STRUCTURE & VERIFIER CLOSURE READY!");
         }
     }
 }

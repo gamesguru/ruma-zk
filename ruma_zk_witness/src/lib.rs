@@ -6,17 +6,9 @@
 extern crate alloc;
 
 #[cfg(feature = "guest")]
-use alloc::{
-    collections::BTreeMap,
-    string::String,
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, string::String, vec::Vec};
 #[cfg(not(feature = "guest"))]
-use std::{
-    collections::BTreeMap,
-    string::String,
-    vec::Vec,
-};
+use std::{collections::BTreeMap, string::String, vec::Vec};
 
 use jolt::provable;
 use serde::{Deserialize, Serialize};
@@ -27,7 +19,7 @@ pub struct HybridEventHint {
     pub event_id: String,
     pub event_type: String,
     pub state_key: String,
-    pub coordinate: u32,
+    pub prev_events: Vec<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -47,16 +39,19 @@ pub fn prove_hybrid_resolution(inputs: Vec<u8>) -> DAGMergeOutput {
         ciborium::from_reader(inputs.as_slice()).expect("Failed to deserialize STARK inputs");
     let event_count = input.sorted_events.len() as u32;
 
-    // 1. Hint Verification (Topological Combinatorial Routing)
-    // Guarantee that the linear array provided by the host is a mathematically valid sorting permutation
+    // 1. Hint Verification (Topological Check)
+    // The host claims `sorted_events` is grouped topologically. We check it in O(N log N).
+    let mut positions = BTreeMap::new();
     for (i, ev) in input.sorted_events.iter().enumerate() {
-        if i > 0 {
-            let prev_coord = input.sorted_events[i - 1].coordinate;
-            let current_coord = ev.coordinate;
+        positions.insert(ev.event_id.clone(), i);
+    }
 
-            let diff = prev_coord ^ current_coord;
-            if diff.count_ones() != 1 {
-                panic!("STARK HINT INVALID: Invalid topological route (multiple bits flipped)");
+    for (i, ev) in input.sorted_events.iter().enumerate() {
+        for prev_id in &ev.prev_events {
+            if let Some(&prev_pos) = positions.get(prev_id) {
+                if prev_pos >= i {
+                    panic!("STARK HINT INVALID: Dependency violates topological order!");
+                }
             }
         }
     }

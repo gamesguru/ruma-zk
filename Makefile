@@ -111,13 +111,10 @@ ifeq ($(TYPE),lite)
 	DEMO_INPUT = res/ruma_bootstrap_events.json
 endif
 
-.PHONY: build-guest
-build-guest: ##H Compile the RISC-V Guest ELFs (Build Check)
-	@echo "Compiling Jolt Guest ELFs..."
-	@# Optimized Path
-	$(CARGO) build -p ruma_zk_guest --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
-	@# Unoptimized Path
-	$(CARGO) build -p ruma_zk_guest_unoptimized --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
+.PHONY: build-witness
+build-witness: ##H Compile the RISC-V Witness ELFs (Build Check)
+	@echo "Compiling Jolt Witness ELFs..."
+	$(CARGO) build -p ruma_zk_witness --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
 
 .PHONY: demo
 demo: ##H Run the CLI Simulation (TYPE=lite for 5-event graph)
