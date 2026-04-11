@@ -12,6 +12,16 @@ endif
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Environment & Defaults
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+JOLT_GUEST_OPTIMIZED_PATH ?= ./ruma_zk_guest
+JOLT_GUEST_UNOPTIMIZED_PATH ?= ./demo_unoptimized_guest
+
+export JOLT_GUEST_OPTIMIZED_PATH
+export JOLT_GUEST_UNOPTIMIZED_PATH
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Build & main targets
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -35,6 +45,19 @@ setup: ##H Fetch real Matrix data and Ruma state resolution fixtures
 		echo "Skipping real Matrix fetch (MATRIX_TOKEN not set)."; \
 	fi
 	@echo "Ruma State Res test fixtures are checked in to res/"
+	$(MAKE) setup-jolt
+
+.PHONY: setup-jolt
+setup-jolt: ##H Install Jolt CLI and RISC-V toolchain
+	@echo "Installing Jolt Guest Toolchain..."
+	rustup target add riscv64imac-unknown-none-elf
+	@if ! cargo jolt --version >/dev/null 2>&1; then \
+		echo "Installing cargo-jolt from git..."; \
+		$(CARGO) install --git https://github.com/a16z/jolt.git jolt; \
+	else \
+		echo "cargo-jolt is already installed."; \
+	fi
+
 
 .PHONY: clean
 clean: ##H Clean up cache and temporary files
@@ -88,10 +111,19 @@ ifeq ($(TYPE),lite)
 	DEMO_INPUT = res/ruma_bootstrap_events.json
 endif
 
+.PHONY: build-guest
+build-guest: ##H Compile the RISC-V Guest ELFs
+	@echo "Compiling Jolt Guest ELFs..."
+	@# Optimized Path
+	$(CARGO) build -p ruma_zk_guest --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
+	@# Unoptimized Path
+	$(CARGO) build -p ruma_zk_guest_unoptimized --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
+
 .PHONY: demo
 demo: ##H Run the CLI Simulation (TYPE=lite for 5-event graph)
 	@echo "Running ZK-Matrix-Join Demo (Input: $(DEMO_INPUT))..."
 	$(CARGO) run --release -- demo --input $(DEMO_INPUT)
+
 
 .PHONY: wasm
 wasm: ##H Build the WebAssembly light-client Verifier
@@ -110,6 +142,7 @@ web-demo: ##H Run local web server to test WASM UI
 prove: ##H Generate full Jolt STARK Proof
 	@echo "Generating Jolt STARK Proof"
 	RUST_LOG=info $(CARGO) run --release -- prove --input res/benchmark_1k.json
+
 
 .PHONY: verify
 verify: ##H Verify an existing Jolt STARK Proof
