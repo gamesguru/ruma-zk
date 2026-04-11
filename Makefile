@@ -10,19 +10,56 @@ ifneq (,$(wildcard ./.env))
 endif
 
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 1. ZK-Matrix Proof Workflow
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+DEMO_INPUT ?= res/benchmark_1k.json
+ifeq ($(TYPE),lite)
+	DEMO_INPUT = res/ruma_bootstrap_events.json
+endif
+
+.PHONY: prove
+prove: ##H Generate full Jolt STARK Proof (Hybrid Priority)
+	@echo "Generating Jolt STARK Proof"
+	RUST_LOG=info $(CARGO) run --release -- prove --input $(DEMO_INPUT)
+
+.PHONY: verify
+verify: ##H Verify an existing Jolt STARK Proof
+	@echo "Verifying Jolt STARK Proof"
+	$(CARGO) run --release -- verify
+
+.PHONY: demo
+demo: ##H Run native simulation of the ZK-Matrix pipeline
+	@echo "Running ZK-Matrix-Join Demo (Input: $(DEMO_INPUT))"
+	$(CARGO) run --release -- demo --input $(DEMO_INPUT)
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Environment & Defaults
+# 2. Extensions (Compression & WASM)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-JOLT_GUEST_OPTIMIZED_PATH ?= ./ruma_zk_guest
-JOLT_GUEST_UNOPTIMIZED_PATH ?= ./demo_unoptimized_guest
+.PHONY: compress
+compress: ##H Compress STARK Proof using Groth16 (WIP)
+	@echo "Compressing STARK using SNARK/Recursive strategies..."
+	RUST_LOG=info $(CARGO) run --release -- prove --input $(DEMO_INPUT) --compression groth16
 
-export JOLT_GUEST_OPTIMIZED_PATH
-export JOLT_GUEST_UNOPTIMIZED_PATH
+.PHONY: wasm
+wasm: ##H Build the WebAssembly light-client Verifier
+	@echo "Compiling WASM bindings"
+	cd ruma-zk-wasm && wasm-pack build --target web
+
+.PHONY: web-demo
+web-demo: ##H Run local web server to test WASM UI
+	@echo "================================================================"
+	@echo " ZK-Matrix WebAssembly Server is starting!"
+	@echo " http://localhost:8080/demo/index.html"
+	@echo "================================================================"
+	python3 -m http.server 8080
+
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Build & main targets
+# 3. Build & Setup
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .PHONY: build
@@ -30,10 +67,10 @@ build: ##H Build the Rust project
 	@echo "Building ZK-Matrix-Join"
 	$(CARGO) build --release
 
-.PHONY: install
-install: ##H Install the ruma-zk binary globally via cargo
-	@echo "Installing ruma-zk"
-	$(CARGO) install --path . --force
+.PHONY: build-witness
+build-witness: ##H Compile the RISC-V Witness ELFs (Build Check)
+	@echo "Compiling Jolt Witness ELFs..."
+	$(CARGO) build -p ruma_zk_witness --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
 
 .PHONY: setup
 setup: ##H Fetch real Matrix data and Ruma state resolution fixtures
@@ -58,19 +95,14 @@ setup-jolt: ##H Install Jolt CLI and RISC-V toolchain
 		echo "cargo-jolt is already installed."; \
 	fi
 
-
-.PHONY: clean
-clean: ##H Clean up cache and temporary files
-	@echo "Cleaning up"
-	find . -name .mypy_cache -exec rm -rf {} +;
-	find . -name .ruff_cache -exec rm -rf {} +;
-	find . -name .pytest_cache -exec rm -rf {} +;
-	rm -rf .tmp/coverage
-# 	$(CARGO) clean
+.PHONY: install
+install: ##H Install the ruma-zk binary globally via cargo
+	@echo "Installing ruma-zk"
+	$(CARGO) install --path . --force
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Testing
+# 4. Testing & Maintenance
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .PHONY: test
@@ -100,55 +132,17 @@ format: ##H Format the Rust and Python codebase
 	-black $(LINT_LOCS_PY)
 	-prettier -w .
 
+.PHONY: clean
+clean: ##H Clean up cache and temporary files
+	@echo "Cleaning up"
+	find . -name .mypy_cache -exec rm -rf {} +;
+	find . -name .ruff_cache -exec rm -rf {} +;
+	find . -name .pytest_cache -exec rm -rf {} +;
+	rm -rf .tmp/coverage
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Demos & proving
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-DEMO_INPUT ?= res/benchmark_1k.json
-ifeq ($(TYPE),lite)
-	DEMO_INPUT = res/ruma_bootstrap_events.json
-endif
-
-.PHONY: build-witness
-build-witness: ##H Compile the RISC-V Witness ELFs (Build Check)
-	@echo "Compiling Jolt Witness ELFs..."
-	$(CARGO) build -p ruma_zk_witness --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
-
-.PHONY: demo
-demo: ##H Run the CLI Simulation (TYPE=lite for 5-event graph)
-	@echo "Running ZK-Matrix-Join Demo (Input: $(DEMO_INPUT))"
-	$(CARGO) run --release -- demo --input $(DEMO_INPUT)
-
-
-.PHONY: wasm
-wasm: ##H Build the WebAssembly light-client Verifier
-	@echo "Compiling WASM bindings"
-	cd ruma-zk-wasm && wasm-pack build --target web
-
-.PHONY: web-demo
-web-demo: ##H Run local web server to test WASM UI
-	@echo "================================================================"
-	@echo " ZK-Matrix WebAssembly Server is starting!"
-	@echo " http://localhost:8080/demo/index.html"
-	@echo "================================================================"
-	python3 -m http.server 8080
-
-.PHONY: prove
-prove: ##H Generate full Jolt STARK Proof
-	@echo "Generating Jolt STARK Proof"
-	RUST_LOG=info $(CARGO) run --release -- prove --input res/benchmark_1k.json
-
-
-.PHONY: verify
-verify: ##H Verify an existing Jolt STARK Proof
-	@echo "Verifying Jolt STARK Proof"
-	$(CARGO) run --release -- verify
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# System & publishing
+# 5. System & Publishing
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .PHONY: publish
@@ -169,7 +163,7 @@ cpu-info: ##H Print hardware info relevant to native targets
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Help
+# Help & Globals
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 STYLE_CYAN := \033[36m
@@ -183,10 +177,6 @@ help: ##H Show this help, list available targets
 		/^[a-zA-Z0-9_\/-]+:.*?##H / { \
 			printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 \
 		}' $(MAKEFILE_LIST)
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Environment & Extras
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # Clean quotes from variables
 MATRIX_TOKEN := $(subst ",,$(subst ',,$(MATRIX_TOKEN)))
