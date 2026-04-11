@@ -12,21 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(not(feature = "host"), no_std)]
+#![cfg_attr(feature = "guest", no_std)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
-#[cfg(not(feature = "host"))]
-#[macro_use]
+#[cfg(feature = "guest")]
 extern crate alloc;
 
-#[cfg(not(feature = "host"))]
+#[cfg(feature = "guest")]
 use alloc::{
     collections::BTreeMap,
     string::{String, ToString},
     vec::Vec,
 };
-#[cfg(feature = "host")]
+#[cfg(not(feature = "guest"))]
 use std::{
     collections::BTreeMap,
     string::{String, ToString},

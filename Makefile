@@ -112,19 +112,12 @@ ifeq ($(TYPE),lite)
 endif
 
 .PHONY: build-guest
-build-guest: ##H Compile the RISC-V Guest ELFs
-	@echo "Compiling Jolt Guest ELFs"
+build-guest: ##H Compile the RISC-V Guest ELFs (Build Check)
+	@echo "Compiling Jolt Guest ELFs..."
 	@# Optimized Path
 	$(CARGO) build -p ruma_zk_guest --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
 	@# Unoptimized Path
 	$(CARGO) build -p ruma_zk_guest_unoptimized --release --target riscv64imac-unknown-none-elf --no-default-features --features guest
-	@echo "Syncing ELFs to Jolt Target Directory (/tmp/jolt-guest-targets)"
-	@# Sync Optimized
-	mkdir -p /tmp/jolt-guest-targets/ruma_zk_guest-verify_topology/riscv64imac-unknown-none-elf/release/
-	cp target/riscv64imac-unknown-none-elf/release/ruma_zk_guest /tmp/jolt-guest-targets/ruma_zk_guest-verify_topology/riscv64imac-unknown-none-elf/release/ruma_zk_guest
-	@# Sync Unoptimized
-	mkdir -p /tmp/jolt-guest-targets/ruma_zk_guest_unoptimized-resolve_full_spec/riscv64imac-unknown-none-elf/release/
-	cp target/riscv64imac-unknown-none-elf/release/ruma_zk_guest_unoptimized /tmp/jolt-guest-targets/ruma_zk_guest_unoptimized-resolve_full_spec/riscv64imac-unknown-none-elf/release/ruma_zk_guest_unoptimized
 
 .PHONY: demo
 demo: ##H Run the CLI Simulation (TYPE=lite for 5-event graph)

@@ -12,22 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![cfg_attr(target_arch = "riscv64", no_std)]
+#![cfg_attr(feature = "guest", no_std)]
 #![forbid(unsafe_code)]
 #![allow(unexpected_cfgs)]
 
-#[cfg(target_arch = "riscv64")]
-#[macro_use]
+#[cfg(feature = "guest")]
 extern crate alloc;
 
-#[cfg(target_arch = "riscv64")]
+#[cfg(feature = "guest")]
 use alloc::vec::Vec;
-#[cfg(not(target_arch = "riscv64"))]
+#[cfg(not(feature = "guest"))]
 use std::vec::Vec;
-
-#[cfg(target_arch = "riscv64")]
-#[no_mangle]
-fn main() {}
 
 use jolt::provable;
 use serde::{Deserialize, Serialize};
