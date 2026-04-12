@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 # Plonky3 primitives
-p3-field = { git = "https://github.com/Plonky3/Plonky3" }
-p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3" }
-p3-keccak = { git = "https://github.com/Plonky3/Plonky3" }
-p3-challenger = { git = "https://github.com/Plonky3/Plonky3" }
-p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3" }
-p3-commit = { git = "https://github.com/Plonky3/Plonky3" }
-p3-symmetric = { git = "https://github.com/Plonky3/Plonky3" }
-p3-matrix = { git = "https://github.com/Plonky3/Plonky3" }
+p3-field = "0.5.2"
+p3-baby-bear = "0.5.2"
+p3-keccak = "0.5.2"
+p3-challenger = "0.5.2"
+p3-merkle-tree = "0.5.2"
+p3-commit = "0.5.2"
+p3-symmetric = "0.5.2"
+p3-matrix = "0.5.2"
 
 # High-performance hashing and processing
 ruma-lean = "0.1.1"

@@ -3,14 +3,15 @@ name = "ruma-zk"
 version = "0.1.1"
 edition = "2021"
 authors = ["Shane Jaroch <chown_tee@proton.me>"]
-description = "High-level API for generating and verifying Matrix State Resolution proofs using Jolt zkVM."
+description = "High-level API for generating and verifying Matrix State Resolution proofs using the CTopology co-processor (Plonky3)."
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/gamesguru/ruma-zk"
 
 
 [dependencies]
-jolt-sdk = { version = "0.1.0", git = "https://github.com/a16z/jolt.git", features = ["host"] }
-ruma_zk_witness = { path = "./ruma_zk_witness", version = "0.1.0", default-features = false }
+ctopology = { path = "./ctopology", version = "0.1.0" }
+p3-field = "0.1.0"
+p3-baby-bear = "0.1.0"
 serde = { version = "=1.0.210", default-features = false, features = ["derive", "alloc"] }
 serde_json = { version = "=1.0.120", default-features = false, features = ["alloc"] }
 sha2 = "0.10.8"

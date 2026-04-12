@@ -15,5 +15,5 @@ require mathlib from git
 
 @[default_target]
 lean_lib «ctopology» where
-  srcDir := "ctopology/lean_src"
+  srcDir := "lean_src"
   -- Library configuration

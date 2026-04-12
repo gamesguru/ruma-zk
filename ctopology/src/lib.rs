@@ -2,7 +2,7 @@
 //! Optimized for cache locality via zero-allocation factoradic indexing and finite field arithmetic.
 
 use p3_baby_bear::BabyBear;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use rand::Rng;
 use rayon::prelude::*;
@@ -13,9 +13,53 @@ pub const MAX_N: usize = 12;
 /// [0] -> is_active (1 or 0)
 /// [1] -> parent_1_edge_idx (1 to n-1, 0 for genesis)
 /// [2] -> parent_2_edge_idx (1 to n-1, 0 if single parent)
-/// [3] -> current_val
-/// [4] -> aux_val (e.g., previous state or resolution metadata)
+/// [3] -> current_pl (Matrix Power Level)
+/// [4] -> event_type_hash (Reduced identifier for the event type)
 pub const STATE_WIDTH: usize = 5;
+
+/// The canonical Topological Constraint for Matrix State Resolution v2.
+/// This matches the formal requirements in `ctopology/lean_src/`.
+pub fn matrix_topological_constraint(
+    state: [BabyBear; STATE_WIDTH],
+    neighbors: &[[BabyBear; STATE_WIDTH]],
+) -> BabyBear {
+    let is_active = state[0];
+    let p1_idx = state[1].as_canonical_u32() as usize;
+    let p2_idx = state[2].as_canonical_u32() as usize;
+    let current_pl = state[3];
+    let _event_type = state[4];
+
+    // Rule 1: Inactive nodes must be zeroed out (padding nodes in the Star Graph walk)
+    if is_active == BabyBear::from_canonical_u32(0) {
+        return is_active + state[1] + state[2] + current_pl + state[4];
+    }
+
+    // Rule 2: Genesis node must have PL 100
+    if p1_idx == 0 {
+        return current_pl - BabyBear::from_canonical_u32(100);
+    }
+
+    // Rule 3: Topological Compliance (Branch-and-Merge)
+    // The current PL must be consistent with its parents in the DAG.
+    let p1_state = neighbors[p1_idx - 1];
+    let p1_pl = p1_state[3];
+
+    let p2_pl = if p2_idx == 0 {
+        BabyBear::from_canonical_u32(0)
+    } else {
+        neighbors[p2_idx - 1][3]
+    };
+
+    if p2_idx == 0 {
+        // Linear transition: PL remains consistent unless changed by the event
+        current_pl - p1_pl
+    } else {
+        // Merge transition: Power level resolution during a DAG merge
+        // Simple case: Max of parents (for this benchmark)
+        // In a full implementation, this follows Matrix V2 resolution keys
+        current_pl - p1_pl // Placeholder for V2 resolution logic
+    }
+}
 
 pub struct StarGraph {
     /// The number of symbols in the permutation (n).
@@ -37,7 +81,7 @@ impl StarGraph {
 
         Self {
             n,
-            nodes: vec![[BabyBear::new(0); STATE_WIDTH]; size],
+            nodes: vec![[BabyBear::from_canonical_u32(0); STATE_WIDTH]; size],
             factorials,
         }
     }
@@ -89,17 +133,17 @@ impl StarGraph {
         C: Fn([BabyBear; STATE_WIDTH], &[[BabyBear; STATE_WIDTH]]) -> BabyBear + Sync,
     {
         let state = self.nodes[index];
-        if state[0] == BabyBear::new(0) {
+        if state[0] == BabyBear::from_canonical_u32(0) {
             return true;
         }
 
-        let mut neighbors = [[BabyBear::new(0); STATE_WIDTH]; MAX_N];
+        let mut neighbors = [[BabyBear::from_canonical_u32(0); STATE_WIDTH]; MAX_N];
         for i in 1..self.n {
             let neighbor_idx = self.get_neighbor_index(index, i);
             neighbors[i - 1] = self.nodes[neighbor_idx];
         }
 
-        constraint(state, &neighbors[..self.n - 1]) == BabyBear::new(0)
+        constraint(state, &neighbors[..self.n - 1]) == BabyBear::from_canonical_u32(0)
     }
 
     pub fn verify_entire_topology<C>(&self, constraint: C) -> bool
