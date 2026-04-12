@@ -1,6 +1,6 @@
 use p3_baby_bear::BabyBear;
 use p3_field::PrimeField32;
-use ruma_zk_topair::{StarGraph, STATE_WIDTH};
+use ruma_zk_topological_air::{StarGraph, STATE_WIDTH};
 use std::collections::HashSet;
 use std::time::Instant;
 

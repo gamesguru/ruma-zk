@@ -1,5 +1,5 @@
 [package]
-name = "ruma-zk-topair"
+name = "ruma-zk-topological-air"
 version.workspace = true
 authors.workspace = true
 edition = "2021"

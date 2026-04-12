@@ -1,5 +1,5 @@
 [package]
-name = "ruma-zk"
+name = "ruma-zk-prover"
 version.workspace = true
 authors.workspace = true
 edition = "2021"
@@ -18,7 +18,7 @@ hex = { version = "=0.4.3", default-features = false, features = ["alloc"] }
 rayon = "1.8"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 ruma-lean = { workspace = true, features = ["cli"] }
-ruma-zk-topair = { workspace = true }
+ruma-zk-topological-air = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10.8"
