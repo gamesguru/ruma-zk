@@ -1152,6 +1152,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "p3-air"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f2ec9cbfc642fc5173817287c3f8b789d07743b5f7e812d058b7a03e344f9ab"
+dependencies = [
+ "p3-field",
+ "p3-matrix",
+ "tracing",
+]
+
+[[package]]
 name = "p3-baby-bear"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1554,28 +1565,13 @@ dependencies = [
 name = "ruma-zk-prover"
 version = "0.1.4"
 dependencies = [
+ "ahash",
  "base64",
  "bincode",
  "ciborium",
  "clap",
  "ed25519-consensus",
  "hashbrown 0.14.5",
- "hex",
- "rayon",
- "reqwest",
- "ruma-lean",
- "ruma-zk-topological-air",
- "serde",
- "serde_json",
- "sha2 0.10.9",
-]
-
-[[package]]
-name = "ruma-zk-topological-air"
-version = "0.1.4"
-dependencies = [
- "ahash",
- "bincode",
  "hex",
  "p3-baby-bear",
  "p3-challenger",
@@ -1587,8 +1583,25 @@ dependencies = [
  "p3-symmetric",
  "rand 0.8.5",
  "rayon",
+ "reqwest",
  "ruma-lean",
+ "ruma-zk-topological-air",
  "ruma-zk-verifier",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "ruma-zk-topological-air"
+version = "0.1.4"
+dependencies = [
+ "bincode",
+ "p3-air",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-matrix",
  "serde",
  "serde_json",
  "tiny-keccak",
@@ -1602,12 +1615,14 @@ dependencies = [
  "getrandom 0.2.17",
  "p3-baby-bear",
  "p3-field",
+ "ruma-zk-topological-air",
  "serde",
  "serde_json",
  "tiny-keccak",
  "uniffi",
  "wasm-bindgen",
  "wasm-bindgen-test",
+ "web-time",
 ]
 
 [[package]]
@@ -2423,6 +2438,16 @@ name = "web-sys"
 version = "0.3.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f2dfbb17949fa2088e5d39408c48368947b86f7834484e87b73de55bc14d97d"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

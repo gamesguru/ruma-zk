@@ -15,7 +15,9 @@
 #![forbid(unsafe_code)]
 
 use clap::Parser;
-use ruma_zk_topological_air::{prove_matrix_resolution, MatrixEvent, RawProof};
+use ruma_zk_prover::prover::prove_matrix_resolution;
+use ruma_zk_topological_air::MatrixEvent;
+use ruma_zk_verifier::RawProof;
 
 use std::collections::BTreeMap;
 use std::fs::File;

@@ -20,6 +20,7 @@ rayon = "1.8"
 reqwest = { version = "0.11", features = ["blocking", "json"] }
 ruma-lean = { workspace = true, features = ["cli"] }
 ruma-zk-topological-air = { workspace = true }
+ruma-zk-verifier = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10.8"

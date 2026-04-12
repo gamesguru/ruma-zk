@@ -1,7 +1,7 @@
 pub mod prover {
     use p3_baby_bear::BabyBear;
     use p3_field::PrimeField32;
-    use p3_matrix::dense::RowMajorMatrix;
+
     use rand::Rng;
     use rayon::prelude::*;
     use ruma_zk_topological_air::{matrix_topological_constraint, MatrixEvent, STATE_WIDTH};
@@ -202,7 +202,7 @@ pub mod prover {
         fn get_path(&self, tree: &[Vec<[u8; 32]>], mut idx: usize) -> Vec<[u8; 32]> {
             let mut path = Vec::new();
             for layer in tree.iter().take(tree.len() - 1) {
-                let is_even = idx % 2 == 0;
+                let is_even = idx.is_multiple_of(2);
                 let sibling_idx = if is_even {
                     if idx + 1 < layer.len() {
                         idx + 1

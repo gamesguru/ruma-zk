@@ -53,7 +53,7 @@ docs: ##H Generate Lean docs
 
 .PHONY: bench
 bench: ##H Run high-performance O(N) benchmark
-	cargo run -p ruma-zk-topological-air --release
+	cargo run -p ruma-zk-prover --release -- demo
 
 .PHONY: wasm
 wasm: ##H Build WebAssembly package (JS + WASM)
@@ -66,7 +66,7 @@ android: ##H Generate Kotlin/Android (UniFFI) bindings
 
 .PHONY: proof-bench
 proof-bench: ##H Run topological prover benchmark
-	cargo run -p ruma-zk-topological-air --release
+	cargo run -p ruma-zk-prover --release -- demo
 
 
 
