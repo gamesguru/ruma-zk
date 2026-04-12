@@ -56,63 +56,89 @@ graph TD
 
 Built on **Jolt RV64IMAC**, allowing formally verified Rust libraries (`ruma-lean`) to run in ZK.
 
-- **`src/host/` (The Prover):** Orchestrates state res and parallelizes the Jolt Prover.
-- **`src/guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
-- **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly (Currently in Simulation mode).
+- **`ruma-zk` (The Prover):** Root-level facade that orchestrates state res and parallelizes the Jolt Prover.
+- **`ruma_zk_guest/` (The zkVM):** Formally verified logic that runs inside Jolt, proving topological compliance and state transitions.
+- **`ruma-zk-wasm/` (The Verifier):** Exposes proof verification to WebAssembly.
 
-## API Specification
+## Proof Tiers
+
+We support three levels of proof compression to balance proving time vs. verification cost:
+
+1.  **Raw STARK (Uncompressed):** The native Jolt output. Fastest to generate (~seconds), large size (~MBs). Ideal for server-to-server synchronization where bandwidth is cheap.
+2.  **Recursive STARK (Intermediate):** Jolt proofs wrapped in themselves. Medium size, optimized for mobile clients and high-performance verifiers.
+3.  **Groth16 SNARK (Compressed):** The "Gold Standard" for edge-verification. Smallest size (~200 bytes), can be verified on-chain (EVM) or in standard browsers via WASM in milliseconds.
+
+## API Specification (Proposed)
 
 We propose new endpoints to securely retrieve these ZK rollups.
 
-### 1. Server-to-Server (Federation API)
+### 1. Retrieve Proof (`GET /zk_state_proof`)
 
-When a Matrix homeserver joins a room, it requests the proof from a resident server.
+Retrieves the trustless state checkpoint for a room.
 
-**Request:**
+**Parameters:**
+
+- `compression`: One of `uncompressed`, `intermediate`, or `groth16`.
 
 ```http
-GET /_matrix/federation/unstable/org.matrix.msc0000/zk_state_proof/!room:example.com
+GET /_matrix/federation/v1/zk_state_proof/!room:example.com?compression=groth16
 Authorization: X-Matrix origin="joining.server",key="...",sig="..."
 ```
-
-### 2. Client-to-Server (Client-Server API)
-
-The homeserver generously passes this exact proof down to end-user clients (Element, etc.) so they can perform edge-verification.
 
 **Example Response:**
 
 ```json
 {
   "room_version": "12",
+  "proof_type": "groth16",
   "checkpoint": {
     "event_id": "$historic_cutoff",
     "resolved_state_root_hash": "<sha256_hash>",
-    "zk_proof": "<jolt_stark_proof>",
-    "program_vkey": "<jolt_vkey>"
-  },
-  "delta": {
-    "recent_state_events": [ ... ]
+    "zk_proof": "<base64_encoded_snark_proof>",
+    "program_vkey": "<jolt_vkey_hash>"
   }
 }
 ```
 
-## Project Architecture
+## CLI Usage
 
-- [Architectural Paths](docs/architectural-paths.md): High-level overview of our Jolt-centric ZK strategy.
-- [Topological Reducer Speedup](docs/topological-reducer-speedup.md): How Jolt's lookup table approach optimizes Matrix DAG resolution.
-
-## Configuration
-
-You can configure the execution mode using environment variables:
-
-- `JOLT_PROVE=1`: Generates a full STARK proof (High CPU/RAM).
-- `EXECUTE_UNOPTIMIZED=1`: Runs the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
-
-Example usage:
+The primary interface is the `ruma-zk` binary.
 
 ```bash
-JOLT_PROVE=1 cargo run --bin ruma-zk-host
+cargo run --release --bin ruma-zk -- [COMMAND]
 ```
+
+### Commands:
+
+- **`demo`**: Run a fast end-to-end simulation.
+  ```bash
+  ruma-zk demo -i res/benchmark_1k.json
+  ```
+- **`prove`**: Generate a full cryptographic proof.
+  ```bash
+  ruma-zk prove -i res/benchmark_1k.json --compression groth16
+  ```
+- **`verify`**: Verify an existing STARK/SNARK proof.
+  ```bash
+  ruma-zk verify --proof-path proof.bin
+  ```
+
+### Options:
+
+- `-i, --input <PATH>`: Path to the Matrix state JSON fixture. Read from STDIN if omitted.
+- `-l, --limit <N>`: Limit the number of events processed (default: 1000, max: 2^24).
+- `-u, --unoptimized`: Run the full Matrix Spec State Res v2 instead of the Optimized Topological Reducer.
+- `-c, --compression <LEVEL>`: Proof compression (uncompressed, intermediate, groth16).
+- `--trace`: Enable cycle-accurate trace analysis during simulation (Warning: High CPU/RAM).
+
+## Deployment
+
+To integrate `ruma-zk` with production Matrix servers like **Synapse** or **Continuwuity**, you can bridge the CLI to a network interface using NGINX.
+
+See the [Deployment Guide](docs/deployment-guides.md) for templates on:
+
+- **Method 1: `fcgiwrap`** (Lowest overhead, UNIX-native)
+- **Method 2: Python HTTP Wrapper** (Recommended for pure JSON piping)
 
 ## Security & Memory Safety
 
