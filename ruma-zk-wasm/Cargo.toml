@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Shane Jaroch <chown_tee@proton.me>"]
 description = "WebAssembly client for verifying ZK-Matrix-Join proofs trustlessly in the browser."
 repository = "https://github.com/gamesguru/ruma-zk"
-license-file = "LICENSE.txt"
+license = "MIT OR Apache-2.0"
 
 [lib]
 crate-type = ["cdylib"]
