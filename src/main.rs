@@ -16,7 +16,7 @@
 
 use clap::Parser;
 use ctopology::{prove_matrix_resolution, StarGraph};
-use serde::Deserialize;
+
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
@@ -81,19 +81,14 @@ enum Commands {
     },
 }
 
-fn default_content() -> String {
-    "{}".to_string()
-}
-
 struct ExecutionData {
     events: Vec<ctopology::MatrixEvent>,
-    fixture_path_str: String,
 }
 
 fn prepare_execution(input_path: Option<String>, limit: Option<usize>) -> ExecutionData {
     println!("> Loading Matrix state from fixture...");
     let mut file_content = String::new();
-    let fixture_path_str = if let Some(path) = input_path {
+    let _fixture_path_str = if let Some(path) = input_path {
         File::open(&path)
             .expect("Failed to open input file")
             .read_to_string(&mut file_content)
@@ -126,10 +121,7 @@ fn prepare_execution(input_path: Option<String>, limit: Option<usize>) -> Execut
         })
         .collect();
 
-    ExecutionData {
-        events,
-        fixture_path_str,
-    }
+    ExecutionData { events }
 }
 
 fn main() {
