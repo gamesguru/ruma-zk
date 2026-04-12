@@ -6,8 +6,19 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use rand::Rng;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashSet};
 
 pub const MAX_N: usize = 12;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatrixEvent {
+    pub event_id: String,
+    pub event_type: String,
+    pub state_key: String,
+    pub prev_events: Vec<String>,
+    pub power_level: u64,
+}
 
 /// The number of field elements stored in each node (columns).
 /// [0] -> is_active (1 or 0)
@@ -261,25 +272,101 @@ impl StarGraph {
         tree
     }
 
-    fn get_path(&self, tree: &[Vec<[u8; 32]>], mut idx: usize) -> Vec<[u8; 32]> {
-        let mut path = Vec::new();
-        for layer in tree.iter().take(tree.len() - 1) {
-            let is_even = (idx % 2) == 0;
-            let sibling_idx = if is_even {
-                if idx + 1 < layer.len() {
-                    idx + 1
-                } else {
-                    idx
+    pub fn build_matrix_trace(&mut self, events: &[MatrixEvent]) -> Result<usize, String> {
+        let mut visited = HashSet::new();
+        let n = self.n;
+
+        // 1. Genesis Node Propagation
+        let mut walker_idx = 0;
+        self.nodes[0] = [
+            BabyBear::from_canonical_u32(1),   // active
+            BabyBear::from_canonical_u32(0),   // p1
+            BabyBear::from_canonical_u32(0),   // p2
+            BabyBear::from_canonical_u32(100), // PL
+            BabyBear::from_canonical_u32(0),   // event_type
+        ];
+        visited.insert(0);
+
+        let mut steps = 1;
+        for ev in events.iter().skip(1) {
+            let mut moved = false;
+            for edge_idx in 1..n {
+                let next_idx = self.get_neighbor_index(walker_idx, edge_idx);
+                if !visited.contains(&next_idx) {
+                    self.nodes[next_idx] = [
+                        BabyBear::from_canonical_u32(1),
+                        BabyBear::from_canonical_u32(edge_idx as u32),
+                        BabyBear::from_canonical_u32(0),
+                        BabyBear::from_canonical_u32(ev.power_level as u32),
+                        BabyBear::from_canonical_u32(1),
+                    ];
+                    visited.insert(next_idx);
+                    walker_idx = next_idx;
+                    steps += 1;
+                    moved = true;
+                    break;
                 }
-            } else {
-                idx - 1
-            };
-            path.push(layer[sibling_idx]);
-            idx /= 2;
+            }
+            if !moved {
+                return Err(format!(
+                    "Star Graph walk capacity reached at step {}",
+                    steps
+                ));
+            }
         }
-        path
+        Ok(steps)
+    }
+}
+
+/// High-level entry point to resolve and prove Matrix state using the Topological AIR.
+pub fn prove_matrix_resolution(events: Vec<MatrixEvent>, n: usize) -> Result<RawProof, String> {
+    // 1. Topological Sort (Internalized Kahn Sort)
+    let mut conflicted_events = ruma_lean::HashMap::new();
+    for ev in &events {
+        let lean_ev = ruma_lean::LeanEvent {
+            event_id: ev.event_id.clone(),
+            sender: "prover".to_string(), // Simplified
+            origin_server_ts: 0,
+            auth_events: Vec::new(),
+            prev_events: ev.prev_events.clone(),
+            event_type: ev.event_type.clone(),
+            state_key: ev.state_key.clone(),
+            content: "{}".to_string(),
+            depth: 0,
+            power_level: ev.power_level as i64,
+        };
+        conflicted_events.insert(ev.event_id.clone(), lean_ev);
     }
 
+    let sorted_ids =
+        ruma_lean::lean_kahn_sort(&conflicted_events, ruma_lean::StateResVersion::V2_1);
+
+    let mut event_map = BTreeMap::new();
+    for ev in events {
+        event_map.insert(ev.event_id.clone(), ev);
+    }
+
+    let sorted_events: Vec<MatrixEvent> = sorted_ids
+        .into_iter()
+        .filter_map(|id| event_map.get(&id).cloned())
+        .collect();
+
+    // 2. Prover Trace Compilation
+    let mut g = StarGraph::new(n);
+    g.build_matrix_trace(&sorted_events)?;
+
+    // 3. Global Parallel Verification
+    if !g.verify_entire_topology(matrix_topological_constraint) {
+        return Err(
+            "Topological integrity violation detected during trace compilation".to_string(),
+        );
+    }
+
+    // 4. Proof Generation (k=1730 for 2^-128 security)
+    Ok(g.prove(1730))
+}
+
+impl StarGraph {
     pub fn verify_opening(root: [u8; 32], opening: &Opening) -> bool {
         use tiny_keccak::{Hasher, Keccak};
         let mut current_hash = [0u8; 32];

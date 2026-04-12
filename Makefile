@@ -39,7 +39,7 @@ clean: ##H Remove build artifacts
 
 .PHONY: lean
 lean: ##H Run Lean theorem proofs and verification
-	$(LAKE) build
+	cd ctopology && $(LAKE) build
 	@printf "\n$${STYLE_GREEN}--- Verification Complete ---$${STYLE_RESET}\n"
 	@printf "$${STYLE_CYAN}Mapped Theorems & Definitions:$${STYLE_RESET}\n"
 	@grep -E '^(theorem|def|class|instance|structure) ' ctopology/lean_src/ctopology/*.lean ctopology/lean_src/ctopology.lean || true
