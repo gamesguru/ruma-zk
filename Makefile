@@ -1,3 +1,4 @@
+# Build tool configuration
 SHELL=/bin/bash
 .DEFAULT_GOAL=_help
 
@@ -10,7 +11,7 @@ LAKE ?= ~/.elan/bin/lake
 
 .PHONY: cache
 cache: ##H Update Lean cache
-	$(LAKE) exe cache get
+	cd ruma-zk-ctopology && $(LAKE) exe cache get
 
 
 LINT_LOCS_LEAN = $$(git ls-files '**/*.lean')
@@ -27,9 +28,9 @@ format: ##H Format codebase
 
 .PHONY: clean
 clean: ##H Remove build artifacts
-	-$(LAKE) clean
-	-$(CARGO) clean
-	# rm -rf res/ .tmp/ .lake/build/
+	-cd ruma-zk-ctopology && $(LAKE) clean
+	-cargo clean
+	rm -rf target/
 
 
 
@@ -39,19 +40,23 @@ clean: ##H Remove build artifacts
 
 .PHONY: lean
 lean: ##H Run Lean theorem proofs and verification
-	cd ctopology && $(LAKE) build
-	@printf "\n$${STYLE_GREEN}--- Verification Complete ---$${STYLE_RESET}\n"
-	@printf "$${STYLE_CYAN}Mapped Theorems & Definitions:$${STYLE_RESET}\n"
-	@grep -E '^(theorem|def|class|instance|structure) ' ctopology/lean_src/ctopology/*.lean ctopology/lean_src/ctopology.lean || true
-	@printf "$${STYLE_GREEN}--------------------------------$${STYLE_RESET}\n"
+	cd ruma-zk-ctopology && $(LAKE) build
+	@printf "\n${STYLE_GREEN}--- Verification Complete ---${STYLE_RESET}\n"
+	@printf "${STYLE_CYAN}Mapped Theorems & Definitions:${STYLE_RESET}\n"
+	@grep -E '^(theorem|def|class|instance|structure) ' ruma-zk-ctopology/lean_src/ctopology/*.lean ruma-zk-ctopology/lean_src/ctopology.lean || true
+	@printf "${STYLE_GREEN}--------------------------------${STYLE_RESET}\n"
 
 .PHONY: docs
 docs: ##H Generate Lean docs
-	DOCGEN_SRC="file" DOCGEN_SKIP_LEAN=1 DOCGEN_SKIP_STD=1 DOCGEN_SKIP_LAKE=1 DOCGEN_SKIP_DEPS=1 $(LAKE) build ctopology:docs
+	DOCGEN_SRC="file" DOCGEN_SKIP_LEAN=1 DOCGEN_SKIP_STD=1 DOCGEN_SKIP_LAKE=1 DOCGEN_SKIP_DEPS=1 cd ruma-zk-ctopology && $(LAKE) build ctopology:docs
 
 .PHONY: bench
 bench: ##H Run high-performance O(N) benchmark
-	cd ctopology && cargo run --release
+	cd ruma-zk-ctopology && cargo run --release
+
+.PHONY: proof-bench
+proof-bench: ##H Run topological prover benchmark
+	cd ruma-zk-ctopology && cargo run --release
 
 
 

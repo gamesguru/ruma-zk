@@ -1,5 +1,5 @@
 [package]
-name = "ruma_zk_witness"
+name = "ruma-zk-witness"
 version = "0.1.1"
 edition = "2021"
 
